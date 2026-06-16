@@ -1,0 +1,23 @@
+import { eq } from 'drizzle-orm'
+import { courses } from '../../db/schema'
+
+// 刪除課程（需管理員登入）
+export default defineEventHandler(async (event) => {
+  await requireUserSession(event)
+
+  const id = Number(getRouterParam(event, 'id'))
+  if (!Number.isInteger(id)) {
+    throw createError({ statusCode: 400, statusMessage: '課程 id 不正確' })
+  }
+
+  const db = useDb(event)
+  const [deleted] = await db
+    .delete(courses)
+    .where(eq(courses.id, id))
+    .returning()
+
+  if (!deleted) {
+    throw createError({ statusCode: 404, statusMessage: '找不到這門課程' })
+  }
+  return { ok: true }
+})

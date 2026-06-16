@@ -1,0 +1,15 @@
+name = "course-schedule"
+compatibility_date = "2025-01-15"
+compatibility_flags = ["nodejs_compat"]
+
+# Cloudflare Pages：build 後的輸出資料夾
+pages_build_output_dir = "dist"
+
+# D1 資料庫綁定。程式裡用 env.DB 取用。
+# database_id 目前是佔位字串：本地開發(--local)不需要，
+# 等你執行 `wrangler d1 create course-schedule-db` 後，把回傳的 id 貼進來才能部署到線上。
+[[d1_databases]]
+binding = "DB"
+database_name = "course-schedule-db"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+migrations_dir = "server/db/migrations"
