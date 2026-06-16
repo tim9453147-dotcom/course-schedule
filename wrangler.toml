@@ -1,4 +1,4 @@
-name = "course-schedule"
+name = "course-schedule-2689336"
 compatibility_date = "2025-01-15"
 compatibility_flags = ["nodejs_compat"]
 
@@ -11,5 +11,5 @@ pages_build_output_dir = "dist"
 [[d1_databases]]
 binding = "DB"
 database_name = "course-schedule-db"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "a3ba6ed2-c12f-4230-881a-5c5d4d88f030"
 migrations_dir = "server/db/migrations"

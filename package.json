@@ -13,7 +13,7 @@
     "db:migrate:local": "wrangler d1 migrations apply course-schedule-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply course-schedule-db --remote",
     "db:seed:local": "wrangler d1 execute course-schedule-db --local --file=./server/db/seed.sql",
-    "deploy": "nuxt build && wrangler pages deploy"
+    "deploy": "nuxt build && wrangler pages deploy dist --project-name course-schedule-2689336 --branch main"
   },
   "dependencies": {
     "@fullcalendar/core": "^6.1.20",

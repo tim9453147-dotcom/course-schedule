@@ -117,34 +117,37 @@ bun dev
 
 ## 部署到 Cloudflare Pages
 
+> 先確認用的是新版 node：`fnm use 22`（或 `mise use node@24`），並在專案資料夾內執行。
+
 ```bash
-# 1. 登入 Cloudflare（會開瀏覽器）
+# 1. 登入 Cloudflare（會開瀏覽器，只有這步需要手動授權）
 bunx wrangler login
 
 # 2. 建立線上 D1 資料庫
 bunx wrangler d1 create course-schedule-db
-#    把回傳的 database_id 貼到 wrangler.toml 的 database_id 欄位
+#    → 把回傳的 database_id 貼到 wrangler.toml 的 database_id 欄位
 
-# 3. 套用 migration 到線上 D1
+# 3. 把資料表建到線上 D1
 bun run db:migrate:remote
 
-# 4. build 並部署
-bun run deploy        # = nuxt build && wrangler pages deploy
+# 4. 建立 Pages 專案（名稱要全帳號唯一；網址會是 <名稱>.pages.dev）
+bunx wrangler pages project create course-schedule --production-branch main
+
+# 5. 設定線上密鑰（名稱要跟 .env 一樣）
+#    NUXT_SESSION_PASSWORD 用隨機 32 字元；管理員帳密請自己決定（別用測試的 admin1234）
+echo -n "$(openssl rand -base64 32)" | bunx wrangler pages secret put NUXT_SESSION_PASSWORD --project-name course-schedule
+echo -n "admin"            | bunx wrangler pages secret put NUXT_ADMIN_USERNAME --project-name course-schedule
+echo -n "你的強密碼"        | bunx wrangler pages secret put NUXT_ADMIN_PASSWORD --project-name course-schedule
+
+# 6. build 並部署
+bun run build
+bunx wrangler pages deploy dist --project-name course-schedule --branch main
 ```
 
-### 線上的環境變數
+完成後會給你一個 `https://course-schedule.pages.dev` 網址。
+之後每次要更新線上版，重跑第 6 步即可；改了資料表則先 `bun run db:migrate:remote`。
 
-在 Cloudflare 後台（Pages 專案 → Settings → Environment variables）或用指令設定，名稱要跟 `.env` 一樣：
-
-- `NUXT_ADMIN_USERNAME`
-- `NUXT_ADMIN_PASSWORD`
-- `NUXT_SESSION_PASSWORD`
-
-```bash
-bunx wrangler pages secret put NUXT_SESSION_PASSWORD
-bunx wrangler pages secret put NUXT_ADMIN_PASSWORD
-bunx wrangler pages secret put NUXT_ADMIN_USERNAME
-```
+> 也可以改用 Cloudflare 後台網頁設定密鑰：Pages 專案 → Settings → Variables and Secrets。
 
 ## 常用指令
 
