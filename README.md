@@ -131,17 +131,17 @@ bunx wrangler d1 create course-schedule-db
 bun run db:migrate:remote
 
 # 4. 建立 Pages 專案（名稱要全帳號唯一；網址會是 <名稱>.pages.dev）
-bunx wrangler pages project create course-schedule --production-branch main
+bunx wrangler pages project create course-schedule-2689336 --production-branch main
 
 # 5. 設定線上密鑰（名稱要跟 .env 一樣）
 #    NUXT_SESSION_PASSWORD 用隨機 32 字元；管理員帳密請自己決定（別用測試的 admin1234）
-echo -n "$(openssl rand -base64 32)" | bunx wrangler pages secret put NUXT_SESSION_PASSWORD --project-name course-schedule
-echo -n "admin"            | bunx wrangler pages secret put NUXT_ADMIN_USERNAME --project-name course-schedule
-echo -n "你的強密碼"        | bunx wrangler pages secret put NUXT_ADMIN_PASSWORD --project-name course-schedule
+echo -n "$(openssl rand -base64 32)" | bunx wrangler pages secret put NUXT_SESSION_PASSWORD --project-name course-schedule-2689336
+echo -n "admin"            | bunx wrangler pages secret put NUXT_ADMIN_USERNAME --project-name course-schedule-2689336
+echo -n "你的強密碼"        | bunx wrangler pages secret put NUXT_ADMIN_PASSWORD --project-name course-schedule-2689336
 
 # 6. build 並部署
 bun run build
-bunx wrangler pages deploy dist --project-name course-schedule --branch main
+bunx wrangler pages deploy dist --project-name course-schedule-2689336 --branch main
 ```
 
 完成後會給你一個 `https://course-schedule-2689336.pages.dev` 網址。
