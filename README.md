@@ -144,7 +144,7 @@ bun run build
 bunx wrangler pages deploy dist --project-name course-schedule --branch main
 ```
 
-完成後會給你一個 `https://course-schedule.pages.dev` 網址。
+完成後會給你一個 `https://course-schedule-2689336.pages.dev` 網址。
 之後每次要更新線上版，重跑第 6 步即可；改了資料表則先 `bun run db:migrate:remote`。
 
 > 也可以改用 Cloudflare 後台網頁設定密鑰：Pages 專案 → Settings → Variables and Secrets。
