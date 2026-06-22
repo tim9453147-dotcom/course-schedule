@@ -5,8 +5,12 @@ const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, '時間格式需為 H
 // 新增 / 編輯課程時的輸入驗證
 export const courseInputSchema = z.object({
   classroom: z.string().trim().min(1).default('中壢'),
-  title: z.string().trim().min(1, '請輸入課程名稱'),
-  teacher: z.string().trim().nullish(),
+  kind: z.enum(['activity', 'course']).default('course'),
+  title: z.string().trim().min(1, '請輸入名稱'),
+  host: z.string().trim().nullish(),
+  sharer: z.string().trim().nullish(),
+  summarizer: z.string().trim().nullish(),
+  pm: z.string().trim().nullish(),
   dayOfWeek: z.coerce.number().int().min(1).max(7),
   startTime: time,
   endTime: time,
@@ -20,7 +24,12 @@ export type CourseInput = z.infer<typeof courseInputSchema>
 // 新增 / 編輯單次活動時的輸入驗證
 export const eventInputSchema = z.object({
   classroom: z.string().trim().min(1).default('中壢'),
-  title: z.string().trim().min(1, '請輸入活動名稱'),
+  kind: z.enum(['activity', 'course']).default('activity'),
+  title: z.string().trim().min(1, '請輸入名稱'),
+  host: z.string().trim().nullish(),
+  sharer: z.string().trim().nullish(),
+  summarizer: z.string().trim().nullish(),
+  pm: z.string().trim().nullish(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式需為 YYYY-MM-DD'),
   // 時間可留空（整天事件）；用 .or(literal('')) 把空字串視為未填
   startTime: time.or(z.literal('')).nullish(),

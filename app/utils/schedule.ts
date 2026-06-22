@@ -5,8 +5,12 @@ export const CLASSROOMS = ['中壢', '新竹', '台北', '台中']
 export interface Course {
   id: number
   classroom: string
+  kind: string
   title: string
-  teacher: string | null
+  host: string | null
+  sharer: string | null
+  summarizer: string | null
+  pm: string | null
   dayOfWeek: number
   startTime: string
   endTime: string
@@ -20,7 +24,12 @@ export interface Course {
 export interface CalEvent {
   id: number
   classroom: string
+  kind: string
   title: string
+  host: string | null
+  sharer: string | null
+  summarizer: string | null
+  pm: string | null
   date: string
   startTime: string | null
   endTime: string | null
@@ -29,6 +38,32 @@ export interface CalEvent {
   note: string | null
   createdAt: number
 }
+
+// 分類：活動 / 課程（純標籤，影響預設顏色、標題文字、是否顯示老師欄）
+export const KIND_OPTIONS = [
+  { value: 'activity', label: '活動' },
+  { value: 'course', label: '課程' }
+]
+
+// 各分類的預設顏色（新增時或切換分類時帶入；使用者仍可自行改）
+export const KIND_DEFAULT_COLOR: Record<string, string> = {
+  activity: 'rose',
+  course: 'sky'
+}
+
+// 重複方式：決定要存成「單次活動(events)」還是「每週(courses)」
+export const REPEAT_OPTIONS = [
+  { value: 'none', label: '不重複' },
+  { value: 'weekly', label: '每週重複' }
+]
+
+// 時間下拉：小時 00～23（24 小時制）、分鐘只有 00/15/30/45
+export const HOUR_OPTIONS = Array.from({ length: 24 }, (_, h) => {
+  const v = String(h).padStart(2, '0')
+  return { label: v, value: v }
+})
+
+export const MINUTE_OPTIONS = ['00', '15', '30', '45'].map(v => ({ label: v, value: v }))
 
 // 星期 1~7 對應中文
 export const DAY_NAMES = ['週一', '週二', '週三', '週四', '週五', '週六', '週日']
