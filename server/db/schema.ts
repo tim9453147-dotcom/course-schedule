@@ -5,10 +5,15 @@ export const courses = sqliteTable('courses', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   // 所屬教室：中壢 / 新竹 / 台北 / 台中
   classroom: text('classroom').notNull().default('中壢'),
+  // 分類：activity=活動 / course=課程（純標籤，影響預設顏色與是否顯示課程角色欄）
+  kind: text('kind').notNull().default('course'),
   // 課程名稱，例如「微積分」
   title: text('title').notNull(),
-  // 授課老師
-  teacher: text('teacher'),
+  // 課程角色（填人名，僅課程類型會用到）：主持 / 分享 / 總結 / PM
+  host: text('host'),
+  sharer: text('sharer'),
+  summarizer: text('summarizer'),
+  pm: text('pm'),
   // 星期：1=週一 ... 7=週日
   dayOfWeek: integer('day_of_week').notNull(),
   // 開始 / 結束時間，存成 "HH:MM" 字串，例如 "08:10"
@@ -31,7 +36,14 @@ export const events = sqliteTable('events', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   // 所屬教室：中壢 / 新竹 / 台北 / 台中
   classroom: text('classroom').notNull().default('中壢'),
+  // 分類：activity=活動 / course=課程（純標籤，影響預設顏色與是否顯示課程角色欄）
+  kind: text('kind').notNull().default('activity'),
   title: text('title').notNull(),
+  // 課程角色（填人名，僅課程類型會用到）：主持 / 分享 / 總結 / PM
+  host: text('host'),
+  sharer: text('sharer'),
+  summarizer: text('summarizer'),
+  pm: text('pm'),
   // 實際日期，存成 "YYYY-MM-DD"，例如 "2026-06-18"
   date: text('date').notNull(),
   // 時間可留空 → 視為整天事件
