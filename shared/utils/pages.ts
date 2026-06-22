@@ -14,12 +14,14 @@ export interface PageDef {
   // public：人人可看，權限決定能否「編輯」
   // private：未登入/無權限者看不到，權限決定能否「看見並使用」
   access: PageAccess
+  // 導覽列圖示（Nuxt UI icon 名稱）
+  icon: string
 }
 
 export const PAGES: PageDef[] = [
-  { key: 'calendar', label: '課表', path: '/', access: 'public' },
-  { key: 'equipment', label: '器材室管理', path: '/equipment', access: 'public' }
-  // { key: 'crm', label: 'CRM', path: '/crm', access: 'private' } // 日後新增
+  { key: 'calendar', label: '課表', path: '/', access: 'public', icon: 'i-lucide-calendar-days' },
+  { key: 'equipment', label: '器材室管理', path: '/equipment', access: 'public', icon: 'i-lucide-package' }
+  // { key: 'crm', label: 'CRM', path: '/crm', access: 'private', icon: 'i-lucide-contact' } // 日後新增
 ]
 
 export const PAGE_KEYS = PAGES.map(p => p.key)
