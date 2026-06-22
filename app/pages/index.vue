@@ -6,7 +6,8 @@ import zhTwLocale from '@fullcalendar/core/locales/zh-tw'
 import type { CalendarOptions, EventClickArg, EventDropArg } from '@fullcalendar/core'
 import type { DateClickArg } from '@fullcalendar/interaction'
 
-const { loggedIn } = useUserSession()
+// 是否能編輯課表（需有 calendar 頁權限；超級管理員全通）
+const canEdit = useCanEdit('calendar')
 const toast = useToast()
 
 const { data: courses, refresh: refreshCourses } = await useFetch<Course[]>('/api/courses')
@@ -62,9 +63,9 @@ const calendarOptions = computed<CalendarOptions>(() => ({
   height: 'auto',
   events: calendarEvents.value,
   displayEventTime: true,
-  // 登入後才能點選與拖曳
-  editable: loggedIn.value,
-  eventStartEditable: loggedIn.value,
+  // 有編輯權限才能點選與拖曳
+  editable: canEdit.value,
+  eventStartEditable: canEdit.value,
   eventDurationEditable: false, // 不允許用拖拉改長度（時間請用編輯視窗）
   eventClick: onEventClick,
   dateClick: onDateClick,
@@ -184,7 +185,7 @@ const endMinute = minuteModel('endTime')
 
 // 點空白日期 → 新增（預設：活動、不重複，日期帶入點選的那天）
 function onDateClick(info: DateClickArg) {
-  if (!loggedIn.value) return
+  if (!canEdit.value) return
   resetForm()
   mode.value = 'create'
   form.date = info.dateStr
@@ -193,7 +194,7 @@ function onDateClick(info: DateClickArg) {
 
 // 點現有事件 → 編輯
 function onEventClick(info: EventClickArg) {
-  if (!loggedIn.value) return
+  if (!canEdit.value) return
   const source = info.event.extendedProps.source as 'course' | 'event'
   const refId = info.event.extendedProps.refId as number
   mode.value = 'edit'
@@ -234,7 +235,7 @@ function toLocalDateStr(d: Date) {
 
 // 拖曳事件 → 改日期（單次活動）或改星期（每週課程）
 async function onEventDrop(info: EventDropArg) {
-  if (!loggedIn.value) {
+  if (!canEdit.value) {
     info.revert()
     return
   }
@@ -373,7 +374,7 @@ const modalTitle = computed(() => {
         class="flex-1"
       />
       <UButton
-        v-if="loggedIn"
+        v-if="canEdit"
         icon="i-lucide-plus"
         class="shrink-0"
         @click="openCreate"
@@ -382,12 +383,12 @@ const modalTitle = computed(() => {
       </UButton>
     </div>
 
-    <p v-if="loggedIn" class="text-sm text-muted mb-4">
+    <p v-if="canEdit" class="text-sm text-muted mb-4">
       <UIcon name="i-lucide-mouse-pointer-click" class="size-4 align-text-bottom" />
       點空白日期可新增、點項目可編輯、直接拖曳可改日期（不重複）或星期（每週重複）。
     </p>
 
-    <div class="schedule-calendar" :class="{ 'is-editable': loggedIn }">
+    <div class="schedule-calendar" :class="{ 'is-editable': canEdit }">
       <ClientOnly>
         <FullCalendar :options="calendarOptions" />
         <template #fallback>
