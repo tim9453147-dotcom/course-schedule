@@ -20,8 +20,8 @@ export interface PageDef {
 
 export const PAGES: PageDef[] = [
   { key: 'calendar', label: '課表', path: '/', access: 'public', icon: 'i-lucide-calendar-days' },
-  { key: 'equipment', label: '器材室管理', path: '/equipment', access: 'public', icon: 'i-lucide-package' }
-  // { key: 'crm', label: 'CRM', path: '/crm', access: 'private', icon: 'i-lucide-contact' } // 日後新增
+  { key: 'equipment', label: '器材室管理', path: '/equipment', access: 'public', icon: 'i-lucide-package' },
+  { key: 'crm', label: '名單', path: '/crm', access: 'private', icon: 'i-lucide-contact' }
 ]
 
 export const PAGE_KEYS = PAGES.map(p => p.key)

@@ -1,9 +1,9 @@
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { contacts } from '../../db/schema'
 
-// 部分更新名單（inline 即時切換階段／頻率，需登入）
+// 部分更新名單（inline 即時切換階段／頻率，需 crm 權限）：僅限自己的名單
 export default defineEventHandler(async (event) => {
-  await requireUserSession(event)
+  const actor = await requirePage(event, 'crm')
 
   const id = Number(getRouterParam(event, 'id'))
   if (!Number.isInteger(id)) {
@@ -13,7 +13,8 @@ export default defineEventHandler(async (event) => {
   const data = await readValidatedBody(event, contactPatchSchema.parse)
   const db = useDb(event)
 
-  const [current] = await db.select().from(contacts).where(eq(contacts.id, id))
+  const owner = ownedBy(contacts.userId, ownerKey(actor))
+  const [current] = await db.select().from(contacts).where(and(eq(contacts.id, id), owner))
   if (!current) {
     throw createError({ statusCode: 404, statusMessage: '找不到這筆名單' })
   }
@@ -35,7 +36,7 @@ export default defineEventHandler(async (event) => {
   const [updated] = await db
     .update(contacts)
     .set(patch)
-    .where(eq(contacts.id, id))
+    .where(and(eq(contacts.id, id), owner))
     .returning()
 
   return updated

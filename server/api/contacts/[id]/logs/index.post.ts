@@ -1,9 +1,9 @@
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { contacts, followUpLogs } from '../../../../db/schema'
 
-// 新增一筆跟進紀錄（需登入）：同時把名單的最後／下次跟進日更新
+// 新增一筆跟進紀錄（需 crm 權限）：僅限自己的名單，同時把名單的最後／下次跟進日更新
 export default defineEventHandler(async (event) => {
-  await requireUserSession(event)
+  const actor = await requirePage(event, 'crm')
 
   const id = Number(getRouterParam(event, 'id'))
   if (!Number.isInteger(id)) {
@@ -13,7 +13,10 @@ export default defineEventHandler(async (event) => {
   const data = await readValidatedBody(event, followUpLogSchema.parse)
   const db = useDb(event)
 
-  const [contact] = await db.select().from(contacts).where(eq(contacts.id, id))
+  const [contact] = await db
+    .select()
+    .from(contacts)
+    .where(and(eq(contacts.id, id), ownedBy(contacts.userId, ownerKey(actor))))
   if (!contact) {
     throw createError({ statusCode: 404, statusMessage: '找不到這筆名單' })
   }

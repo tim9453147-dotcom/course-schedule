@@ -58,16 +58,6 @@ async function logout() {
           >
             使用者管理
           </UButton>
-          <UButton
-            v-if="loggedIn"
-            to="/crm"
-            icon="i-lucide-contact"
-            :color="route.path === '/crm' ? 'primary' : 'neutral'"
-            :variant="route.path === '/crm' ? 'soft' : 'ghost'"
-            class="font-bold"
-          >
-            客戶名單
-          </UButton>
         </nav>
       </template>
 

@@ -120,6 +120,8 @@ export const users = sqliteTable('users', {
 // CRM 名單（追蹤漏斗階段與跟進排程）
 export const contacts = sqliteTable('contacts', {
   id: integer('id').primaryKey({ autoIncrement: true }),
+  // 擁有者：一般使用者為其 users.id；超級管理員為 NULL。每位使用者各自獨立的名單。
+  userId: integer('user_id').references(() => users.id),
   // 姓名
   name: text('name').notNull(),
   // 位置
@@ -170,3 +172,9 @@ export type Equipment = typeof equipment.$inferSelect
 export type NewEquipment = typeof equipment.$inferInsert
 export type Rental = typeof rentals.$inferSelect
 export type NewRental = typeof rentals.$inferInsert
+export type User = typeof users.$inferSelect
+export type NewUser = typeof users.$inferInsert
+export type Contact = typeof contacts.$inferSelect
+export type NewContact = typeof contacts.$inferInsert
+export type FollowUpLog = typeof followUpLogs.$inferSelect
+export type NewFollowUpLog = typeof followUpLogs.$inferInsert

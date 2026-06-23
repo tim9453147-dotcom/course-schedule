@@ -1,0 +1,1 @@
+ALTER TABLE `contacts` ADD `user_id` integer REFERENCES users(id);

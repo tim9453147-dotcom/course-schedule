@@ -1,4 +1,5 @@
-import { eq } from 'drizzle-orm'
+import { eq, isNull } from 'drizzle-orm'
+import type { SQLiteColumn } from 'drizzle-orm/sqlite-core'
 import type { H3Event } from 'h3'
 import { users } from '../db/schema'
 import type { User } from '../db/schema'
@@ -59,6 +60,16 @@ export async function requirePage(event: H3Event, key: string): Promise<Actor> {
     throw createError({ statusCode: 403, statusMessage: '沒有使用此功能的權限' })
   }
   return actor
+}
+
+// 個人資料（名單等）的擁有者鍵：一般使用者為其 id，超級管理員為 null。
+export function ownerKey(actor: Actor): number | null {
+  return actor.isSuperAdmin ? null : actor.user.id
+}
+
+// 依擁有者鍵組出 WHERE 條件（null 須用 IS NULL，不能用 = NULL）。
+export function ownedBy(column: SQLiteColumn, key: number | null) {
+  return key === null ? isNull(column) : eq(column, key)
 }
 
 // 要求超級管理員（管理者頁、使用者管理 API）
