@@ -2,7 +2,7 @@ import { events } from '../../db/schema'
 
 // 新增單次活動（需管理員登入）
 export default defineEventHandler(async (event) => {
-  await requireUserSession(event)
+  await requirePage(event, 'calendar')
 
   const data = await readValidatedBody(event, eventInputSchema.parse)
   const db = useDb(event)

@@ -3,7 +3,7 @@ import { courses } from '../../db/schema'
 
 // 刪除課程（需管理員登入）
 export default defineEventHandler(async (event) => {
-  await requireUserSession(event)
+  await requirePage(event, 'calendar')
 
   const id = Number(getRouterParam(event, 'id'))
   if (!Number.isInteger(id)) {

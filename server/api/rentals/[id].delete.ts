@@ -3,7 +3,7 @@ import { rentals } from '../../db/schema'
 
 // 刪除借還紀錄（需登入）
 export default defineEventHandler(async (event) => {
-  await requireUserSession(event)
+  await requirePage(event, 'equipment')
 
   const id = Number(getRouterParam(event, 'id'))
   if (!Number.isInteger(id)) {

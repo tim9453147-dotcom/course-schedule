@@ -93,6 +93,30 @@ export const rentals = sqliteTable('rentals', {
     .$defaultFn(() => Math.floor(Date.now() / 1000))
 })
 
+// 使用者資料表（多帳號＋頁面權限＋申請審核）
+// 超級管理員不在此表，靠環境變數帳號登入特判。
+export const users = sqliteTable('users', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  // 登入帳號，唯一（建議 email，不強制格式）
+  username: text('username').notNull().unique(),
+  // 顯示名稱
+  displayName: text('display_name').notNull(),
+  // 密碼雜湊（nuxt-auth-utils hashPassword，scrypt）
+  passwordHash: text('password_hash').notNull(),
+  // 狀態：pending=待審 / approved=已啟用 / rejected=已拒絕 / disabled=已停用
+  status: text('status').notNull().default('pending'),
+  // 已授權頁面，存成 JSON 字串陣列，例如 '["calendar","equipment"]'
+  pages: text('pages').notNull().default('[]'),
+  // 申請備註
+  note: text('note'),
+  // 建立時間（Unix 秒）
+  createdAt: integer('created_at')
+    .notNull()
+    .$defaultFn(() => Math.floor(Date.now() / 1000)),
+  // 審核通過時間（Unix 秒）
+  approvedAt: integer('approved_at')
+})
+
 // 方便其他檔案引用的型別
 export type Course = typeof courses.$inferSelect
 export type NewCourse = typeof courses.$inferInsert
@@ -102,3 +126,5 @@ export type Equipment = typeof equipment.$inferSelect
 export type NewEquipment = typeof equipment.$inferInsert
 export type Rental = typeof rentals.$inferSelect
 export type NewRental = typeof rentals.$inferInsert
+export type User = typeof users.$inferSelect
+export type NewUser = typeof users.$inferInsert

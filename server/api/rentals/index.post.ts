@@ -2,7 +2,7 @@ import { rentals } from '../../db/schema'
 
 // 新增借出紀錄（需登入）。借出數量不可超過可用數量。
 export default defineEventHandler(async (event) => {
-  await requireUserSession(event)
+  await requirePage(event, 'equipment')
 
   const data = await readValidatedBody(event, rentalInputSchema.parse)
   const db = useDb(event)

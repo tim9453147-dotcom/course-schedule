@@ -3,7 +3,7 @@ import { equipment } from '../../db/schema'
 
 // 更新器材（需登入）
 export default defineEventHandler(async (event) => {
-  await requireUserSession(event)
+  await requirePage(event, 'equipment')
 
   const id = Number(getRouterParam(event, 'id'))
   if (!Number.isInteger(id)) {

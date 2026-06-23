@@ -32,7 +32,7 @@ async function onSubmit() {
     <UCard class="w-full max-w-sm">
       <template #header>
         <h1 class="text-lg font-bold">
-          管理員登入
+          登入
         </h1>
       </template>
 
@@ -53,6 +53,10 @@ async function onSubmit() {
         <UButton type="submit" block :loading="loading">
           登入
         </UButton>
+
+        <p class="text-xs text-muted text-center">
+          還沒有帳號？<ULink to="/apply">申請帳號</ULink>
+        </p>
       </UForm>
     </UCard>
   </UContainer>

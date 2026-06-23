@@ -3,7 +3,7 @@ import { rentals } from '../../db/schema'
 
 // 更新借還紀錄（需登入）。可用來編輯，或設定 returnDate 表示歸還。
 export default defineEventHandler(async (event) => {
-  await requireUserSession(event)
+  await requirePage(event, 'equipment')
 
   const id = Number(getRouterParam(event, 'id'))
   if (!Number.isInteger(id)) {

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-const { loggedIn } = useUserSession()
+// 是否能編輯器材室（需有 equipment 頁權限；超級管理員全通）
+const canEdit = useCanEdit('equipment')
 const toast = useToast()
 
 const { data: equipment, refresh: refreshEquip } = await useFetch<Equipment[]>('/api/equipment')
@@ -208,7 +209,7 @@ async function removeRental(r: Rental) {
     <UTabs :items="viewTabs">
       <!-- 器材清單 -->
       <template #list>
-        <div v-if="loggedIn" class="flex justify-end gap-2 mb-4">
+        <div v-if="canEdit" class="flex justify-end gap-2 mb-4">
           <UButton icon="i-lucide-arrow-right-left" color="neutral" variant="subtle" @click="openBorrow()">
             借出
           </UButton>
@@ -240,7 +241,7 @@ async function removeRental(r: Rental) {
                 可用 {{ availableOf(e) }}
               </span>
             </div>
-            <template v-if="loggedIn">
+            <template v-if="canEdit">
               <UButton
                 icon="i-lucide-arrow-right-left"
                 color="neutral"
@@ -257,7 +258,7 @@ async function removeRental(r: Rental) {
 
       <!-- 借還紀錄 -->
       <template #rentals>
-        <div v-if="loggedIn" class="flex justify-end mb-4">
+        <div v-if="canEdit" class="flex justify-end mb-4">
           <UButton icon="i-lucide-plus" :disabled="!myEquip.length" @click="openBorrow()">
             新增借出
           </UButton>
@@ -288,7 +289,7 @@ async function removeRental(r: Rental) {
               <div v-if="r.returnDate">歸還 {{ r.returnDate }}</div>
               <div v-else-if="r.dueDate">應還 {{ r.dueDate }}</div>
             </div>
-            <template v-if="loggedIn">
+            <template v-if="canEdit">
               <UButton
                 v-if="!r.returnDate"
                 icon="i-lucide-check"

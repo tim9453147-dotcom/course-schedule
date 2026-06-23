@@ -3,7 +3,7 @@ import { equipment, rentals } from '../../db/schema'
 
 // 刪除器材（需登入）：連同其借還紀錄一起刪
 export default defineEventHandler(async (event) => {
-  await requireUserSession(event)
+  await requirePage(event, 'equipment')
 
   const id = Number(getRouterParam(event, 'id'))
   if (!Number.isInteger(id)) {

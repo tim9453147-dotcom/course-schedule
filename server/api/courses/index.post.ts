@@ -2,7 +2,7 @@ import { courses } from '../../db/schema'
 
 // 新增課程（需管理員登入）
 export default defineEventHandler(async (event) => {
-  await requireUserSession(event)
+  await requirePage(event, 'calendar')
 
   const data = await readValidatedBody(event, courseInputSchema.parse)
   const db = useDb(event)
