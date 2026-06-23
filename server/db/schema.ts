@@ -117,6 +117,50 @@ export const users = sqliteTable('users', {
   approvedAt: integer('approved_at')
 })
 
+// CRM 名單（追蹤漏斗階段與跟進排程）
+export const contacts = sqliteTable('contacts', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  // 姓名
+  name: text('name').notNull(),
+  // 位置
+  location: text('location'),
+  // 漏斗 5 階段（依序）：破題 → 2 → 336 → 加入 → 28，以布林記錄是否完成
+  stepBreak: integer('step_break', { mode: 'boolean' }).notNull().default(false),
+  step2: integer('step_2', { mode: 'boolean' }).notNull().default(false),
+  step336: integer('step_336', { mode: 'boolean' }).notNull().default(false),
+  stepJoined: integer('step_joined', { mode: 'boolean' }).notNull().default(false),
+  step28: integer('step_28', { mode: 'boolean' }).notNull().default(false),
+  // 聯絡方式
+  contact: text('contact'),
+  // 跟進頻率：一週一次 / 兩週一次 / 一個月一次 / 一季一次 / 半年一次 / 暫停
+  followUpFreq: text('follow_up_freq'),
+  // 最後 / 下次跟進日（"YYYY-MM-DD"）；nextFollowUp 由 lastFollowUp + 頻率自動算出
+  lastFollowUp: text('last_follow_up'),
+  nextFollowUp: text('next_follow_up'),
+  note: text('note'),
+  createdAt: integer('created_at')
+    .notNull()
+    .$defaultFn(() => Math.floor(Date.now() / 1000)),
+  updatedAt: integer('updated_at')
+    .notNull()
+    .$defaultFn(() => Math.floor(Date.now() / 1000))
+})
+
+// 跟進紀錄（時間軸，一筆名單對多筆紀錄）
+export const followUpLogs = sqliteTable('follow_up_logs', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  contactId: integer('contact_id')
+    .notNull()
+    .references(() => contacts.id),
+  // 跟進日期（"YYYY-MM-DD"）
+  date: text('date').notNull(),
+  // 跟進內容
+  content: text('content'),
+  createdAt: integer('created_at')
+    .notNull()
+    .$defaultFn(() => Math.floor(Date.now() / 1000))
+})
+
 // 方便其他檔案引用的型別
 export type Course = typeof courses.$inferSelect
 export type NewCourse = typeof courses.$inferInsert
@@ -126,5 +170,3 @@ export type Equipment = typeof equipment.$inferSelect
 export type NewEquipment = typeof equipment.$inferInsert
 export type Rental = typeof rentals.$inferSelect
 export type NewRental = typeof rentals.$inferInsert
-export type User = typeof users.$inferSelect
-export type NewUser = typeof users.$inferInsert

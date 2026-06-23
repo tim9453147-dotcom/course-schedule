@@ -66,3 +66,43 @@ export const rentalInputSchema = z.object({
 })
 
 export type RentalInput = z.infer<typeof rentalInputSchema>
+
+// CRM 跟進頻率允許值
+const followUpFreq = z.enum([
+  '一週一次',
+  '兩週一次',
+  '一個月一次',
+  '一季一次',
+  '半年一次',
+  '暫停'
+])
+
+// 名單：新增 / 編輯（整筆）。nextFollowUp 由後端計算，不接受前端輸入。
+export const contactInputSchema = z.object({
+  name: z.string().trim().min(1, '請輸入姓名'),
+  location: z.string().trim().nullish(),
+  stepBreak: z.boolean().default(false),
+  step2: z.boolean().default(false),
+  step336: z.boolean().default(false),
+  stepJoined: z.boolean().default(false),
+  step28: z.boolean().default(false),
+  contact: z.string().trim().nullish(),
+  followUpFreq: followUpFreq.or(z.literal('')).nullish(),
+  lastFollowUp: date.or(z.literal('')).nullish(),
+  note: z.string().trim().nullish()
+})
+
+export type ContactInput = z.infer<typeof contactInputSchema>
+
+// 名單：inline 即時切換（只送變動欄位）
+export const contactPatchSchema = contactInputSchema.partial()
+
+export type ContactPatch = z.infer<typeof contactPatchSchema>
+
+// 跟進紀錄輸入驗證
+export const followUpLogSchema = z.object({
+  date,
+  content: z.string().trim().nullish()
+})
+
+export type FollowUpLogInput = z.infer<typeof followUpLogSchema>

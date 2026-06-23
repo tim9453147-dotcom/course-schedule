@@ -18,7 +18,8 @@ async function onSubmit() {
     await $fetch('/api/auth/login', { method: 'POST', body: state })
     await refreshSession()
     toast.add({ title: '登入成功', color: 'success' })
-    await navigateTo('/')
+    const redirect = useRoute().query.redirect
+    await navigateTo(typeof redirect === 'string' ? redirect : '/')
   } catch {
     toast.add({ title: '登入失敗', description: '帳號或密碼錯誤', color: 'error' })
   } finally {
