@@ -30,6 +30,44 @@ async function logout() {
   toast.add({ title: "已登出", color: "success" });
   await navigateTo("/");
 }
+
+// 修改密碼（僅一般使用者；超級管理員密碼由環境變數設定）
+const pwOpen = ref(false);
+const pwSaving = ref(false);
+const pwForm = reactive({ current: "", next: "", confirm: "" });
+
+function openChangePassword() {
+  pwForm.current = "";
+  pwForm.next = "";
+  pwForm.confirm = "";
+  pwOpen.value = true;
+}
+
+async function changePassword() {
+  if (pwForm.next.length < 6) {
+    toast.add({ title: "新密碼至少 6 碼", color: "error" });
+    return;
+  }
+  if (pwForm.next !== pwForm.confirm) {
+    toast.add({ title: "兩次輸入的新密碼不一致", color: "error" });
+    return;
+  }
+  pwSaving.value = true;
+  try {
+    await $fetch("/api/auth/password", {
+      method: "PUT",
+      body: { currentPassword: pwForm.current, newPassword: pwForm.next },
+    });
+    pwOpen.value = false;
+    toast.add({ title: "密碼已更新", color: "success" });
+  } catch (e: unknown) {
+    const msg =
+      (e as { data?: { message?: string } })?.data?.message ?? "請稍後再試";
+    toast.add({ title: "修改失敗", description: msg, color: "error" });
+  } finally {
+    pwSaving.value = false;
+  }
+}
 </script>
 
 <template>
@@ -65,6 +103,15 @@ async function logout() {
         <UColorModeButton />
 
         <template v-if="loggedIn">
+          <UButton
+            v-if="!isSuper"
+            icon="i-lucide-key-round"
+            color="neutral"
+            variant="ghost"
+            @click="openChangePassword"
+          >
+            修改密碼
+          </UButton>
           <UButton color="neutral" variant="ghost" @click="logout">
             登出（{{ user?.name }}）
           </UButton>
@@ -101,5 +148,44 @@ async function logout() {
         </p>
       </template>
     </UFooter>
+
+    <!-- 修改密碼 -->
+    <UModal v-model:open="pwOpen" title="修改密碼">
+      <template #body>
+        <div class="space-y-4">
+          <UFormField label="目前密碼" required>
+            <UInput
+              v-model="pwForm.current"
+              type="password"
+              autocomplete="current-password"
+              class="w-full"
+            />
+          </UFormField>
+          <UFormField label="新密碼（至少 6 碼）" required>
+            <UInput
+              v-model="pwForm.next"
+              type="password"
+              autocomplete="new-password"
+              class="w-full"
+            />
+          </UFormField>
+          <UFormField label="確認新密碼" required>
+            <UInput
+              v-model="pwForm.confirm"
+              type="password"
+              autocomplete="new-password"
+              class="w-full"
+              @keyup.enter="changePassword"
+            />
+          </UFormField>
+          <div class="flex justify-end gap-2 pt-2">
+            <UButton color="neutral" variant="ghost" @click="pwOpen = false">
+              取消
+            </UButton>
+            <UButton :loading="pwSaving" @click="changePassword">儲存</UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
   </UApp>
 </template>
