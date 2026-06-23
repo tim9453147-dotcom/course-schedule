@@ -4,7 +4,9 @@ definePageMeta({ middleware: 'auth' })
 
 const toast = useToast()
 
-const { data: contacts, refresh: refreshContacts } = await useFetch<Contact[]>('/api/contacts')
+// deep: true → 名單清單為深層響應式，inline 樂觀更新（c[key]=value、Object.assign）
+// 才會即時反映到畫面。Nuxt 4 的 useFetch 預設是 shallow，不加會「送了 API 但畫面不動」。
+const { data: contacts, refresh: refreshContacts } = await useFetch<Contact[]>('/api/contacts', { deep: true })
 
 /* ---------- 篩選 / 搜尋 ---------- */
 const search = ref('')
@@ -241,7 +243,7 @@ async function addLog() {
 async function removeLog(log: FollowUpLog) {
   if (!confirm('確定刪除這筆跟進紀錄？')) return
   try {
-    await $fetch(`/api/follow-up-logs/${log.id}`, { method: 'DELETE' })
+    await $fetch(`/api/contacts/${log.contactId}/logs/${log.id}`, { method: 'DELETE' })
     if (detailContact.value) {
       await Promise.all([loadLogs(detailContact.value.id), refreshContacts()])
       const fresh = (contacts.value ?? []).find(x => x.id === detailContact.value?.id)
@@ -370,11 +372,10 @@ async function removeLog(log: FollowUpLog) {
               位置
             </th>
             <th
-              v-for="s in FUNNEL_STEPS"
-              :key="s.key"
+              :colspan="FUNNEL_STEPS.length"
               class="font-medium px-2 py-2 text-center whitespace-nowrap"
             >
-              {{ s.label }}
+              漏斗階段（依序）
             </th>
             <th class="text-left font-medium px-3 py-2 whitespace-nowrap">
               聯絡方式
@@ -420,13 +421,25 @@ async function removeLog(log: FollowUpLog) {
             <td
               v-for="s in FUNNEL_STEPS"
               :key="s.key"
-              class="px-2 py-2 text-center"
-              :class="c[s.key] ? 'bg-primary/10' : ''"
+              class="px-1.5 py-1.5 text-center"
             >
-              <UiCheckbox
-                :model-value="c[s.key]"
-                @update:model-value="toggleStep(c, s.key, $event as boolean)"
-              />
+              <button
+                type="button"
+                class="mx-auto flex h-8 w-full min-w-16 items-center justify-center gap-1 rounded-full border px-2 text-xs font-medium cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
+                :class="c[s.key]
+                  ? 'border-primary bg-primary text-inverted shadow-sm'
+                  : 'border-dashed border-default text-dimmed hover:border-primary/60 hover:text-primary hover:bg-primary/5'"
+                :aria-pressed="c[s.key]"
+                :title="(c[s.key] ? '取消標記：' : '標記完成：') + s.label"
+                @click="toggleStep(c, s.key, !c[s.key])"
+              >
+                <UIcon
+                  v-if="c[s.key]"
+                  name="i-lucide-check"
+                  class="size-3.5 shrink-0"
+                />
+                {{ s.label }}
+              </button>
             </td>
             <td class="px-2 py-1 whitespace-nowrap">
               <UInput

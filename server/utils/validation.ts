@@ -95,7 +95,17 @@ export const contactInputSchema = z.object({
 export type ContactInput = z.infer<typeof contactInputSchema>
 
 // 名單：inline 即時切換（只送變動欄位）
-export const contactPatchSchema = contactInputSchema.partial()
+// 注意：階段布林在 contactInputSchema 帶有 .default(false)，但 zod 的 .partial()
+// 不會移除 default —— 未送出的階段欄位會被重新填成 false，導致「切換某一階段時
+// 把其他階段一併清空」。故在此把 5 個階段覆寫成「不帶 default 的 optional」，
+// 沒送的欄位就維持原值不動。
+export const contactPatchSchema = contactInputSchema.partial().extend({
+  stepBreak: z.boolean().optional(),
+  step2: z.boolean().optional(),
+  step336: z.boolean().optional(),
+  stepJoined: z.boolean().optional(),
+  step28: z.boolean().optional()
+})
 
 export type ContactPatch = z.infer<typeof contactPatchSchema>
 

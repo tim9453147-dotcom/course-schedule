@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm'
-import { contacts, followUpLogs } from '../../../db/schema'
+import { contacts, followUpLogs } from '../../../../db/schema'
 
 // 新增一筆跟進紀錄（需登入）：同時把名單的最後／下次跟進日更新
 export default defineEventHandler(async (event) => {

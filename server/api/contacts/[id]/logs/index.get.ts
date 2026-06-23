@@ -1,5 +1,5 @@
 import { eq, desc } from 'drizzle-orm'
-import { followUpLogs } from '../../../db/schema'
+import { followUpLogs } from '../../../../db/schema'
 
 // 取得某名單的跟進紀錄（時間軸，需登入）
 export default defineEventHandler(async (event) => {
