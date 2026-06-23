@@ -1,23 +1,23 @@
 <script setup lang="ts">
-const { loggedIn, user, clear } = useUserSession();
-const toast = useToast();
-const route = useRoute();
+const { loggedIn, user, clear } = useUserSession()
+const toast = useToast()
+const route = useRoute()
 
 useHead({
-  meta: [{ name: "viewport", content: "width=device-width, initial-scale=1" }],
-  link: [{ rel: "icon", href: "/favicon.ico" }],
-  htmlAttrs: { lang: "zh-Hant" },
-});
+  meta: [{ name: 'viewport', content: 'width=device-width, initial-scale=1' }],
+  link: [{ rel: 'icon', href: '/favicon.ico' }],
+  htmlAttrs: { lang: 'zh-Hant' }
+})
 
 useSeoMeta({
-  title: "教室課表",
-  description: "教室課表",
-});
+  title: '教室課表',
+  description: '教室課表'
+})
 
 async function logout() {
-  await clear();
-  toast.add({ title: "已登出", color: "success" });
-  await navigateTo("/");
+  await clear()
+  toast.add({ title: '已登出', color: 'success' })
+  await navigateTo('/')
 }
 </script>
 
@@ -44,6 +44,16 @@ async function logout() {
           >
             器材室管理
           </UButton>
+          <UButton
+            v-if="loggedIn"
+            to="/crm"
+            icon="i-lucide-contact"
+            :color="route.path === '/crm' ? 'primary' : 'neutral'"
+            :variant="route.path === '/crm' ? 'soft' : 'ghost'"
+            class="font-bold"
+          >
+            客戶名單
+          </UButton>
         </nav>
       </template>
 
@@ -51,7 +61,11 @@ async function logout() {
         <UColorModeButton />
 
         <template v-if="loggedIn">
-          <UButton color="neutral" variant="ghost" @click="logout">
+          <UButton
+            color="neutral"
+            variant="ghost"
+            @click="logout"
+          >
             登出（{{ user?.name }}）
           </UButton>
         </template>
