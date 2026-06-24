@@ -81,11 +81,10 @@ const followUpFreq = z.enum([
 export const contactInputSchema = z.object({
   name: z.string().trim().min(1, '請輸入姓名'),
   location: z.string().trim().nullish(),
-  stepBreak: z.boolean().default(false),
-  step2: z.boolean().default(false),
-  step336: z.boolean().default(false),
-  stepJoined: z.boolean().default(false),
-  step28: z.boolean().default(false),
+  // 是否已破題（false=未破題 / true=破題）
+  broached: z.boolean().default(false),
+  // 已完成的進度階段 id 陣列
+  completedStages: z.array(z.number().int()).default([]),
   contact: z.string().trim().nullish(),
   followUpFreq: followUpFreq.or(z.literal('')).nullish(),
   lastFollowUp: date.or(z.literal('')).nullish(),
@@ -95,19 +94,29 @@ export const contactInputSchema = z.object({
 export type ContactInput = z.infer<typeof contactInputSchema>
 
 // 名單：inline 即時切換（只送變動欄位）
-// 注意：階段布林在 contactInputSchema 帶有 .default(false)，但 zod 的 .partial()
-// 不會移除 default —— 未送出的階段欄位會被重新填成 false，導致「切換某一階段時
-// 把其他階段一併清空」。故在此把 5 個階段覆寫成「不帶 default 的 optional」，
-// 沒送的欄位就維持原值不動。
+// 注意：broached / completedStages 在 contactInputSchema 帶有 .default()，但 zod 的
+// .partial() 不會移除 default —— 未送出的欄位會被重新填成預設值，導致誤清。
+// 故在此把它們覆寫成「不帶 default 的 optional」，沒送的欄位就維持原值不動。
 export const contactPatchSchema = contactInputSchema.partial().extend({
-  stepBreak: z.boolean().optional(),
-  step2: z.boolean().optional(),
-  step336: z.boolean().optional(),
-  stepJoined: z.boolean().optional(),
-  step28: z.boolean().optional()
+  broached: z.boolean().optional(),
+  completedStages: z.array(z.number().int()).optional()
 })
 
 export type ContactPatch = z.infer<typeof contactPatchSchema>
+
+// 進度階段：新增 / 編輯
+export const contactStageInputSchema = z.object({
+  label: z.string().trim().min(1, '請輸入階段名稱')
+})
+
+export type ContactStageInput = z.infer<typeof contactStageInputSchema>
+
+export const contactStagePatchSchema = z.object({
+  label: z.string().trim().min(1, '請輸入階段名稱').optional(),
+  sortOrder: z.coerce.number().int().optional()
+})
+
+export type ContactStagePatch = z.infer<typeof contactStagePatchSchema>
 
 // 跟進紀錄輸入驗證
 export const followUpLogSchema = z.object({
@@ -116,3 +125,8 @@ export const followUpLogSchema = z.object({
 })
 
 export type FollowUpLogInput = z.infer<typeof followUpLogSchema>
+
+// 取消「今天已跟進」：帶入要清除的日期（由前端以當地今天送出）
+export const doneDateSchema = z.object({ date })
+
+export type DoneDateInput = z.infer<typeof doneDateSchema>

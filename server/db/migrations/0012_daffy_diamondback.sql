@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD `classrooms` text DEFAULT '["中壢"]' NOT NULL;

@@ -4,22 +4,27 @@ definePageMeta({ middleware: 'auth' })
 
 const toast = useToast()
 
-// deep: true → 名單清單為深層響應式，inline 樂觀更新（c[key]=value、Object.assign）
+// deep: true → 名單清單為深層響應式，inline 樂觀更新（c.xxx=value、Object.assign）
 // 才會即時反映到畫面。Nuxt 4 的 useFetch 預設是 shallow，不加會「送了 API 但畫面不動」。
 const { data: contacts, refresh: refreshContacts } = await useFetch<Contact[]>('/api/contacts', { deep: true })
+// 進度階段（每位使用者各自管理；後端首次為空時會種子預設）
+const { data: stages, refresh: refreshStages } = await useFetch<ContactStage[]>('/api/contact-stages', { deep: true })
 
 /* ---------- 篩選 / 搜尋 ---------- */
 const search = ref('')
-// 'all' = 不限；reka-ui 的 SelectItem 不允許空字串值，故用 'all' 當哨兵
-const stepFilter = ref<StepKey | 'all'>('all') // 只看完成某階段的人
+// 'all'=不限；'broached'/'unbroached'=破題狀態；其餘為階段 id（字串）。
+// reka-ui 的 SelectItem 不允許空字串值，故用 'all' 當哨兵。
+const stepFilter = ref<string>('all')
 const freqFilter = ref('all')
 const overdueOnly = ref(false)
 const sortByNext = ref(false)
 
-const stepFilterItems = [
-  { label: '全部階段', value: 'all' },
-  ...FUNNEL_STEPS.map(s => ({ label: `已完成「${s.label}」`, value: s.key }))
-]
+const stepFilterItems = computed(() => [
+  { label: '全部進度', value: 'all' },
+  { label: '未破題', value: 'unbroached' },
+  { label: '破題', value: 'broached' },
+  ...(stages.value ?? []).map(s => ({ label: `已完成「${s.label}」`, value: String(s.id) }))
+])
 const freqFilterItems = [
   { label: '全部頻率', value: 'all' },
   ...FOLLOW_UP_FREQ_OPTIONS.map(f => ({ label: f, value: f }))
@@ -32,11 +37,15 @@ const filtered = computed(() => {
   if (q) {
     list = list.filter(c =>
       c.name.toLowerCase().includes(q)
-      || (c.contact ?? '').toLowerCase().includes(q)
       || (c.location ?? '').toLowerCase().includes(q)
     )
   }
-  if (stepFilter.value !== 'all') list = list.filter(c => c[stepFilter.value as StepKey])
+  if (stepFilter.value === 'broached') list = list.filter(c => c.broached)
+  else if (stepFilter.value === 'unbroached') list = list.filter(c => !c.broached)
+  else if (stepFilter.value !== 'all') {
+    const sid = Number(stepFilter.value)
+    list = list.filter(c => (c.completedStages ?? []).includes(sid))
+  }
   if (freqFilter.value !== 'all') list = list.filter(c => c.followUpFreq === freqFilter.value)
   if (overdueOnly.value) list = list.filter(c => isOverdue(c.nextFollowUp))
 
@@ -54,28 +63,72 @@ const filtered = computed(() => {
 /* ---------- 統計 ---------- */
 const stats = computed(() => {
   const list = contacts.value ?? []
-  const steps = FUNNEL_STEPS.map(s => ({
+  const broached = list.filter(c => c.broached).length
+  const steps = (stages.value ?? []).map(s => ({
     label: s.label,
-    key: s.key,
-    count: list.filter(c => c[s.key]).length
+    id: s.id,
+    count: list.filter(c => (c.completedStages ?? []).includes(s.id)).length
   }))
   const overdue = list.filter(c => isOverdue(c.nextFollowUp)).length
-  return { total: list.length, steps, overdue }
+  return { total: list.length, broached, steps, overdue }
 })
 
 /* ---------- inline 即時更新 ---------- */
-async function toggleStep(c: Contact, key: StepKey, value: boolean) {
-  const prev = c[key]
-  c[key] = value // 樂觀更新（畫面立即打勾）
+// 破題與否（二選一切換）
+async function setBroached(c: Contact, value: boolean) {
+  if (c.broached === value) return
+  const prev = c.broached
+  c.broached = value // 樂觀更新
   try {
     const updated = await $fetch<Contact>(`/api/contacts/${c.id}`, {
       method: 'PATCH',
-      body: { [key]: value }
+      body: { broached: value }
     })
-    Object.assign(c, updated) // 同步後端結果
+    Object.assign(c, updated)
   } catch {
-    c[key] = prev // 失敗還原
+    c.broached = prev
     toast.add({ title: '更新失敗', color: 'error' })
+  }
+}
+
+// 切換某個進度階段是否完成
+async function toggleStage(c: Contact, stageId: number) {
+  const prev = [...(c.completedStages ?? [])]
+  const next = prev.includes(stageId)
+    ? prev.filter(id => id !== stageId)
+    : [...prev, stageId]
+  c.completedStages = next // 樂觀更新
+  try {
+    const updated = await $fetch<Contact>(`/api/contacts/${c.id}`, {
+      method: 'PATCH',
+      body: { completedStages: next }
+    })
+    Object.assign(c, updated)
+  } catch {
+    c.completedStages = prev
+    toast.add({ title: '更新失敗', color: 'error' })
+  }
+}
+
+// Done：勾＝今天跟進過（新增今天的跟進紀錄）；取消＝刪掉今天的紀錄。lastFollowUp/nextFollowUp 由後端回算。
+async function toggleDone(c: Contact, value: boolean) {
+  const today = todayStr()
+  try {
+    if (value) {
+      await $fetch(`/api/contacts/${c.id}/logs`, {
+        method: 'POST',
+        body: { date: today, content: '' }
+      })
+    } else {
+      await $fetch(`/api/contacts/${c.id}/done`, {
+        method: 'DELETE',
+        body: { date: today }
+      })
+    }
+    await refreshContacts()
+  } catch {
+    toast.add({ title: '更新失敗', color: 'error' })
+    await refreshContacts()
   }
 }
 
@@ -92,8 +145,8 @@ async function changeFreq(c: Contact, value: string) {
   }
 }
 
-// inline 文字欄位（姓名／位置／聯絡方式）即時更新
-async function patchField(c: Contact, key: 'name' | 'location' | 'contact') {
+// inline 文字欄位（姓名／位置）即時更新
+async function patchField(c: Contact, key: 'name' | 'location') {
   try {
     const updated = await $fetch<Contact>(`/api/contacts/${c.id}`, {
       method: 'PATCH',
@@ -107,33 +160,96 @@ async function patchField(c: Contact, key: 'name' | 'location' | 'contact') {
   }
 }
 
+/* ---------- 管理進度階段 ---------- */
+const stagesModalOpen = ref(false)
+const newStageLabel = ref('')
+const stageSaving = ref(false)
+
+async function addStage() {
+  const label = newStageLabel.value.trim()
+  if (!label) return
+  stageSaving.value = true
+  try {
+    await $fetch('/api/contact-stages', { method: 'POST', body: { label } })
+    newStageLabel.value = ''
+    await refreshStages()
+  } catch {
+    toast.add({ title: '新增階段失敗', color: 'error' })
+  } finally {
+    stageSaving.value = false
+  }
+}
+
+// 改名（model-value 已樂觀寫回 s.label，這裡把結果存到後端）
+async function renameStage(s: ContactStage) {
+  const v = s.label.trim()
+  if (!v) {
+    await refreshStages() // 清空不允許，還原
+    return
+  }
+  try {
+    await $fetch(`/api/contact-stages/${s.id}`, { method: 'PATCH', body: { label: v } })
+  } catch {
+    toast.add({ title: '改名失敗', color: 'error' })
+    await refreshStages()
+  }
+}
+
+// 上／下移：與相鄰階段交換 sortOrder
+async function moveStage(index: number, dir: -1 | 1) {
+  const list = stages.value ?? []
+  const j = index + dir
+  if (j < 0 || j >= list.length) return
+  const a = list[index]!
+  const b = list[j]!
+  try {
+    await Promise.all([
+      $fetch(`/api/contact-stages/${a.id}`, { method: 'PATCH', body: { sortOrder: b.sortOrder } }),
+      $fetch(`/api/contact-stages/${b.id}`, { method: 'PATCH', body: { sortOrder: a.sortOrder } })
+    ])
+    await refreshStages()
+  } catch {
+    toast.add({ title: '排序失敗', color: 'error' })
+    await refreshStages()
+  }
+}
+
+async function deleteStage(s: ContactStage) {
+  if (!confirm(`確定刪除階段「${s.label}」？已標記此階段的名單會失去這個標記。`)) return
+  try {
+    await $fetch(`/api/contact-stages/${s.id}`, { method: 'DELETE' })
+    await Promise.all([refreshStages(), refreshContacts()])
+  } catch {
+    toast.add({ title: '刪除失敗', color: 'error' })
+  }
+}
+
 /* ---------- 新增名單 ---------- */
 const formOpen = ref(false)
 const saving = ref(false)
 const form = reactive({
   name: '',
   location: '',
-  stepBreak: false,
-  step2: false,
-  step336: false,
-  stepJoined: false,
-  step28: false,
-  contact: '',
+  broached: false,
+  completedStages: [] as number[],
   followUpFreq: '',
   lastFollowUp: '',
   note: ''
 })
 
+function toggleFormStage(id: number, val: boolean | 'indeterminate') {
+  const on = val === true
+  const has = form.completedStages.includes(id)
+  if (on && !has) form.completedStages.push(id)
+  else if (!on && has) form.completedStages = form.completedStages.filter(x => x !== id)
+}
+
 function openCreate() {
   Object.assign(form, {
     name: '',
     location: '',
-    stepBreak: false,
-    step2: false,
-    step336: false,
-    stepJoined: false,
-    step28: false,
-    contact: '',
+    broached: false,
+    completedStages: [],
     followUpFreq: '',
     lastFollowUp: '',
     note: ''
@@ -261,15 +377,25 @@ async function removeLog(log: FollowUpLog) {
       <h1 class="text-xl font-bold">
         客戶名單 CRM
       </h1>
-      <UButton
-        icon="i-lucide-user-plus"
-        @click="openCreate"
-      >
-        新增名單
-      </UButton>
+      <div class="flex items-center gap-2">
+        <UButton
+          icon="i-lucide-list-checks"
+          color="neutral"
+          variant="outline"
+          @click="stagesModalOpen = true"
+        >
+          <span class="hidden sm:inline">管理階段</span>
+        </UButton>
+        <UButton
+          icon="i-lucide-user-plus"
+          @click="openCreate"
+        >
+          <span class="hidden sm:inline">新增名單</span>
+        </UButton>
+      </div>
     </div>
 
-    <!-- 漏斗統計 + 逾期提醒 -->
+    <!-- 進度統計 + 逾期提醒 -->
     <div class="flex flex-wrap items-center gap-2 mb-4">
       <UBadge
         color="neutral"
@@ -282,15 +408,28 @@ async function removeLog(log: FollowUpLog) {
         name="i-lucide-chevrons-right"
         class="text-muted"
       />
+      <UButton
+        size="sm"
+        :color="stepFilter === 'broached' ? 'primary' : 'neutral'"
+        :variant="stepFilter === 'broached' ? 'soft' : 'outline'"
+        @click="stepFilter = stepFilter === 'broached' ? 'all' : 'broached'"
+      >
+        破題 {{ stats.broached }}
+      </UButton>
+      <UIcon
+        v-if="stats.steps.length"
+        name="i-lucide-arrow-right"
+        class="text-muted"
+      />
       <template
         v-for="(s, i) in stats.steps"
-        :key="s.key"
+        :key="s.id"
       >
         <UButton
           size="sm"
-          :color="stepFilter === s.key ? 'primary' : 'neutral'"
-          :variant="stepFilter === s.key ? 'soft' : 'outline'"
-          @click="stepFilter = stepFilter === s.key ? 'all' : s.key"
+          :color="stepFilter === String(s.id) ? 'primary' : 'neutral'"
+          :variant="stepFilter === String(s.id) ? 'soft' : 'outline'"
+          @click="stepFilter = stepFilter === String(s.id) ? 'all' : String(s.id)"
         >
           {{ s.label }} {{ s.count }}
         </UButton>
@@ -318,7 +457,7 @@ async function removeLog(log: FollowUpLog) {
       <UInput
         v-model="search"
         icon="i-lucide-search"
-        placeholder="搜尋姓名／聯絡方式／位置"
+        placeholder="搜尋姓名／位置"
         class="w-64"
       />
       <USelect
@@ -372,19 +511,19 @@ async function removeLog(log: FollowUpLog) {
               位置
             </th>
             <th
-              :colspan="FUNNEL_STEPS.length"
+              :colspan="(stages?.length ?? 0) + 1"
               class="font-medium px-2 py-2 text-center whitespace-nowrap"
             >
-              漏斗階段（依序）
+              進度
             </th>
-            <th class="text-left font-medium px-3 py-2 whitespace-nowrap">
-              聯絡方式
+            <th class="font-medium px-3 py-2 text-center whitespace-nowrap">
+              Done
             </th>
             <th class="text-left font-medium px-3 py-2 whitespace-nowrap">
               跟進頻率
             </th>
             <th class="text-left font-medium px-3 py-2 whitespace-nowrap">
-              下次跟進
+              上次跟進
             </th>
             <th class="px-3 py-2 whitespace-nowrap text-right">
               操作
@@ -418,38 +557,56 @@ async function removeLog(log: FollowUpLog) {
                 @change="patchField(c, 'location')"
               />
             </td>
+            <!-- 破題與否：二選一切換 -->
+            <td class="px-2 py-1.5 whitespace-nowrap">
+              <div class="inline-flex rounded-full border border-default overflow-hidden text-xs font-medium">
+                <button
+                  type="button"
+                  class="px-2.5 py-1 cursor-pointer transition-colors"
+                  :class="!c.broached ? 'bg-primary text-inverted' : 'text-dimmed hover:bg-elevated'"
+                  @click="setBroached(c, false)"
+                >
+                  未破題
+                </button>
+                <button
+                  type="button"
+                  class="px-2.5 py-1 cursor-pointer transition-colors"
+                  :class="c.broached ? 'bg-primary text-inverted' : 'text-dimmed hover:bg-elevated'"
+                  @click="setBroached(c, true)"
+                >
+                  破題
+                </button>
+              </div>
+            </td>
+            <!-- 可自訂進度階段（勾選累積） -->
             <td
-              v-for="s in FUNNEL_STEPS"
-              :key="s.key"
+              v-for="s in (stages ?? [])"
+              :key="s.id"
               class="px-1.5 py-1.5 text-center"
             >
               <button
                 type="button"
-                class="mx-auto flex h-8 w-full min-w-16 items-center justify-center gap-1 rounded-full border px-2 text-xs font-medium cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
-                :class="c[s.key]
+                class="mx-auto flex h-8 w-full min-w-14 items-center justify-center gap-1 rounded-full border px-2 text-xs font-medium cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
+                :class="(c.completedStages ?? []).includes(s.id)
                   ? 'border-primary bg-primary text-inverted shadow-sm'
                   : 'border-dashed border-default text-dimmed hover:border-primary/60 hover:text-primary hover:bg-primary/5'"
-                :aria-pressed="c[s.key]"
-                :title="(c[s.key] ? '取消標記：' : '標記完成：') + s.label"
-                @click="toggleStep(c, s.key, !c[s.key])"
+                :aria-pressed="(c.completedStages ?? []).includes(s.id)"
+                :title="((c.completedStages ?? []).includes(s.id) ? '取消標記：' : '標記完成：') + s.label"
+                @click="toggleStage(c, s.id)"
               >
                 <UIcon
-                  v-if="c[s.key]"
+                  v-if="(c.completedStages ?? []).includes(s.id)"
                   name="i-lucide-check"
                   class="size-3.5 shrink-0"
                 />
                 {{ s.label }}
               </button>
             </td>
-            <td class="px-2 py-1 whitespace-nowrap">
-              <UInput
-                :model-value="c.contact ?? ''"
-                variant="ghost"
-                size="sm"
-                placeholder="電話 / LINE"
-                class="w-36"
-                @update:model-value="c.contact = ($event as string)"
-                @change="patchField(c, 'contact')"
+            <!-- Done：勾＝今天已跟進 -->
+            <td class="px-3 py-2 text-center">
+              <UCheckbox
+                :model-value="c.lastFollowUp === todayStr()"
+                @update:model-value="toggleDone(c, $event === true)"
               />
             </td>
             <td class="px-3 py-2 whitespace-nowrap">
@@ -462,19 +619,21 @@ async function removeLog(log: FollowUpLog) {
                 @update:model-value="changeFreq(c, $event as string)"
               />
             </td>
+            <!-- 上次跟進：相對時間 + 逾期標記 -->
             <td class="px-3 py-2 whitespace-nowrap">
-              <span
-                v-if="!c.nextFollowUp"
-                class="text-dimmed"
-              >—</span>
-              <UBadge
-                v-else
-                :color="isOverdue(c.nextFollowUp) ? 'error' : 'neutral'"
-                :variant="isOverdue(c.nextFollowUp) ? 'solid' : 'subtle'"
-                class="tabular-nums"
-              >
-                {{ c.nextFollowUp }}
-              </UBadge>
+              <div class="flex items-center gap-1.5">
+                <span :class="c.lastFollowUp ? 'tabular-nums' : 'text-dimmed'">
+                  {{ timeAgo(c.lastFollowUp) }}
+                </span>
+                <UBadge
+                  v-if="isOverdue(c.nextFollowUp)"
+                  color="error"
+                  variant="solid"
+                  size="sm"
+                >
+                  逾期
+                </UBadge>
+              </div>
             </td>
             <td class="px-3 py-2 whitespace-nowrap text-right">
               <div class="flex justify-end gap-1">
@@ -525,37 +684,46 @@ async function removeLog(log: FollowUpLog) {
             </UFormField>
           </div>
 
-          <UFormField label="漏斗階段">
-            <div class="flex flex-wrap gap-4">
-              <UCheckbox
-                v-model="form.stepBreak"
-                label="破題"
-              />
-              <UCheckbox
-                v-model="form.step2"
-                label="2"
-              />
-              <UCheckbox
-                v-model="form.step336"
-                label="336"
-              />
-              <UCheckbox
-                v-model="form.stepJoined"
-                label="加入"
-              />
-              <UCheckbox
-                v-model="form.step28"
-                label="28"
-              />
+          <UFormField label="破題狀態">
+            <div class="inline-flex rounded-lg border border-default overflow-hidden text-sm font-medium">
+              <button
+                type="button"
+                class="px-4 py-1.5 cursor-pointer transition-colors"
+                :class="!form.broached ? 'bg-primary text-inverted' : 'hover:bg-elevated'"
+                @click="form.broached = false"
+              >
+                未破題
+              </button>
+              <button
+                type="button"
+                class="px-4 py-1.5 cursor-pointer transition-colors"
+                :class="form.broached ? 'bg-primary text-inverted' : 'hover:bg-elevated'"
+                @click="form.broached = true"
+              >
+                破題
+              </button>
             </div>
           </UFormField>
 
-          <UFormField label="聯絡方式">
-            <UInput
-              v-model="form.contact"
-              class="w-full"
-              placeholder="電話 / LINE / Email"
-            />
+          <UFormField label="進度階段">
+            <div
+              v-if="stages?.length"
+              class="flex flex-wrap gap-4"
+            >
+              <UCheckbox
+                v-for="s in stages"
+                :key="s.id"
+                :model-value="form.completedStages.includes(s.id)"
+                :label="s.label"
+                @update:model-value="toggleFormStage(s.id, $event)"
+              />
+            </div>
+            <p
+              v-else
+              class="text-muted text-sm"
+            >
+              還沒有階段，可在「管理階段」新增。
+            </p>
           </UFormField>
 
           <div class="grid grid-cols-2 gap-4">
@@ -606,6 +774,83 @@ async function removeLog(log: FollowUpLog) {
       </template>
     </UModal>
 
+    <!-- 管理進度階段 -->
+    <UModal
+      v-model:open="stagesModalOpen"
+      title="管理進度階段"
+    >
+      <template #body>
+        <div class="space-y-3">
+          <p class="text-sm text-muted">
+            這些階段套用到你所有的名單。刪除階段不會刪除名單，只會移除該標記。
+          </p>
+          <ul
+            v-if="stages?.length"
+            class="space-y-2"
+          >
+            <li
+              v-for="(s, i) in stages"
+              :key="s.id"
+              class="flex items-center gap-2"
+            >
+              <UInput
+                :model-value="s.label"
+                size="sm"
+                class="flex-1"
+                @update:model-value="s.label = ($event as string)"
+                @change="renameStage(s)"
+              />
+              <UButton
+                icon="i-lucide-chevron-up"
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                :disabled="i === 0"
+                @click="moveStage(i, -1)"
+              />
+              <UButton
+                icon="i-lucide-chevron-down"
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                :disabled="i === stages.length - 1"
+                @click="moveStage(i, 1)"
+              />
+              <UButton
+                icon="i-lucide-trash-2"
+                color="error"
+                variant="ghost"
+                size="xs"
+                @click="deleteStage(s)"
+              />
+            </li>
+          </ul>
+          <p
+            v-else
+            class="text-muted text-sm"
+          >
+            還沒有階段。
+          </p>
+          <div class="flex gap-2 pt-3 border-t border-default">
+            <UInput
+              v-model="newStageLabel"
+              placeholder="新增階段名稱…"
+              size="sm"
+              class="flex-1"
+              @keydown.enter="addStage"
+            />
+            <UButton
+              icon="i-lucide-plus"
+              :loading="stageSaving"
+              @click="addStage"
+            >
+              新增
+            </UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
+
     <!-- 跟進紀錄抽屜 -->
     <USlideover
       v-model:open="detailOpen"
@@ -619,10 +864,10 @@ async function removeLog(log: FollowUpLog) {
           <!-- 名單摘要 -->
           <div class="text-sm space-y-1">
             <div>
-              <span class="text-muted">聯絡方式：</span>{{ detailContact.contact || '—' }}
+              <span class="text-muted">跟進頻率：</span>{{ detailContact.followUpFreq || '未設定' }}
             </div>
             <div>
-              <span class="text-muted">跟進頻率：</span>{{ detailContact.followUpFreq || '未設定' }}
+              <span class="text-muted">上次跟進：</span>{{ timeAgo(detailContact.lastFollowUp) }}
             </div>
             <div>
               <span class="text-muted">下次跟進：</span>

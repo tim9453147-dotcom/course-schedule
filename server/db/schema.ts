@@ -107,6 +107,8 @@ export const users = sqliteTable('users', {
   status: text('status').notNull().default('pending'),
   // 已授權頁面，存成 JSON 字串陣列，例如 '["calendar","equipment"]'
   pages: text('pages').notNull().default('[]'),
+  // 可看到的課表教室，存成 JSON 字串陣列；預設只看得到中壢
+  classrooms: text('classrooms').notNull().default('["中壢"]'),
   // 申請備註
   note: text('note'),
   // 建立時間（Unix 秒）
@@ -126,12 +128,13 @@ export const contacts = sqliteTable('contacts', {
   name: text('name').notNull(),
   // 位置
   location: text('location'),
-  // 漏斗 5 階段（依序）：破題 → 2 → 336 → 加入 → 28，以布林記錄是否完成
-  stepBreak: integer('step_break', { mode: 'boolean' }).notNull().default(false),
-  step2: integer('step_2', { mode: 'boolean' }).notNull().default(false),
-  step336: integer('step_336', { mode: 'boolean' }).notNull().default(false),
-  stepJoined: integer('step_joined', { mode: 'boolean' }).notNull().default(false),
-  step28: integer('step_28', { mode: 'boolean' }).notNull().default(false),
+  // 是否已破題（false=未破題 / true=破題）。固定的二元狀態，與下方可自訂階段分開。
+  broached: integer('broached', { mode: 'boolean' }).notNull().default(false),
+  // 已完成的「進度階段」id 陣列（對應 contact_stages.id），以 JSON 存放
+  completedStages: text('completed_stages', { mode: 'json' })
+    .$type<number[]>()
+    .notNull()
+    .default([]),
   // 聯絡方式
   contact: text('contact'),
   // 跟進頻率：一週一次 / 兩週一次 / 一個月一次 / 一季一次 / 半年一次 / 暫停
@@ -144,6 +147,20 @@ export const contacts = sqliteTable('contacts', {
     .notNull()
     .$defaultFn(() => Math.floor(Date.now() / 1000)),
   updatedAt: integer('updated_at')
+    .notNull()
+    .$defaultFn(() => Math.floor(Date.now() / 1000))
+})
+
+// 進度階段定義（每位使用者各自一份，可自行新增／改名／排序／刪除）
+// 擁有者規則同 contacts：一般使用者為 users.id，超級管理員為 NULL。
+export const contactStages = sqliteTable('contact_stages', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').references(() => users.id),
+  // 階段名稱，例如「2」「336」「加入」「28」
+  label: text('label').notNull(),
+  // 排序（越小越前）
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: integer('created_at')
     .notNull()
     .$defaultFn(() => Math.floor(Date.now() / 1000))
 })
@@ -176,5 +193,7 @@ export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
 export type Contact = typeof contacts.$inferSelect
 export type NewContact = typeof contacts.$inferInsert
+export type ContactStage = typeof contactStages.$inferSelect
+export type NewContactStage = typeof contactStages.$inferInsert
 export type FollowUpLog = typeof followUpLogs.$inferSelect
 export type NewFollowUpLog = typeof followUpLogs.$inferInsert

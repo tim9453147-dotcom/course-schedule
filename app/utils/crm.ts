@@ -3,11 +3,10 @@ export interface Contact {
   id: number
   name: string
   location: string | null
-  stepBreak: boolean
-  step2: boolean
-  step336: boolean
-  stepJoined: boolean
-  step28: boolean
+  // 是否已破題（false=未破題 / true=破題）
+  broached: boolean
+  // 已完成的進度階段 id 陣列（對應 ContactStage.id）
+  completedStages: number[]
   contact: string | null
   followUpFreq: string | null
   lastFollowUp: string | null
@@ -15,6 +14,15 @@ export interface Contact {
   note: string | null
   createdAt: number
   updatedAt: number
+}
+
+// 進度階段型別（對應後端 contact_stages 表）
+export interface ContactStage {
+  id: number
+  userId: number | null
+  label: string
+  sortOrder: number
+  createdAt: number
 }
 
 // 跟進紀錄型別（對應後端 follow_up_logs 表）
@@ -26,16 +34,11 @@ export interface FollowUpLog {
   createdAt: number
 }
 
-// 漏斗 5 階段（依序）；key 對應 Contact 上的布林欄位
-export const FUNNEL_STEPS = [
-  { key: 'stepBreak', label: '破題' },
-  { key: 'step2', label: '2' },
-  { key: 'step336', label: '336' },
-  { key: 'stepJoined', label: '加入' },
-  { key: 'step28', label: '28' }
+// 破題與否的二選一切換選項
+export const BROACHED_OPTIONS = [
+  { label: '未破題', value: false },
+  { label: '破題', value: true }
 ] as const
-
-export type StepKey = (typeof FUNNEL_STEPS)[number]['key']
 
 // 跟進頻率選項
 export const FOLLOW_UP_FREQ_OPTIONS = [
@@ -52,12 +55,27 @@ export function isOverdue(nextFollowUp: string | null | undefined) {
   return !!nextFollowUp && nextFollowUp < todayStr()
 }
 
-// 名單已完成到第幾階段（連續完成的階段數，用於漏斗進度）
-export function funnelProgress(c: Contact) {
-  let n = 0
-  for (const step of FUNNEL_STEPS) {
-    if (c[step.key]) n++
-    else break
+// 把日期（YYYY-MM-DD）轉成相對今天的中文描述：今天／昨天／N天前／一週前／N個月前…
+export function timeAgo(dateStr: string | null | undefined): string {
+  if (!dateStr) return '—'
+  const today = todayStr()
+  if (dateStr === today) return '今天'
+  // 以 UTC 解析避免時區誤差，計算整數天差
+  const a = Date.parse(`${dateStr}T00:00:00Z`)
+  const b = Date.parse(`${today}T00:00:00Z`)
+  if (Number.isNaN(a) || Number.isNaN(b)) return dateStr
+  const days = Math.round((b - a) / 86400000)
+  if (days < 0) return dateStr // 未來日期，原樣顯示
+  if (days === 1) return '昨天'
+  if (days < 7) return `${days}天前`
+  if (days < 30) {
+    const w = Math.floor(days / 7)
+    return w === 1 ? '一週前' : `${w}週前`
   }
-  return n
+  if (days < 365) {
+    const m = Math.floor(days / 30)
+    return m === 1 ? '一個月前' : `${m}個月前`
+  }
+  const y = Math.floor(days / 365)
+  return y === 1 ? '一年前' : `${y}年前`
 }

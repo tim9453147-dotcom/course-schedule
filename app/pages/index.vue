@@ -9,17 +9,41 @@ import type { DateClickArg } from '@fullcalendar/interaction'
 // 是否能編輯課表（需有 calendar 頁權限；超級管理員全通）
 const canEdit = useCanEdit('calendar')
 const toast = useToast()
+const { loggedIn, session } = useUserSession()
 
 const { data: courses, refresh: refreshCourses } = await useFetch<Course[]>('/api/courses')
 const { data: events, refresh: refreshEvents } = await useFetch<CalEvent[]>('/api/events')
 
-// 目前選到的教室分頁
-const classroom = ref(CLASSROOMS[0])
-const tabItems = CLASSROOMS.map(name => ({ label: name, value: name }))
+// 這個瀏覽者看得到哪些教室：超管全部、登入者看其被授權的、未登入或未設定則只看中壢
+const visibleClassrooms = computed<string[]>(() => {
+  if (session.value?.isSuperAdmin) return CLASSROOMS
+  const allowed = sanitizeClassrooms(session.value?.classrooms)
+  return loggedIn.value && allowed.length ? allowed : DEFAULT_CLASSROOMS
+})
+
+// 目前選到的教室分頁（visibleClassrooms 永遠非空，故 [0] 必有值）
+const classroom = ref<string>(visibleClassrooms.value[0] ?? CLASSROOMS[0]!)
+const tabItems = computed(() => visibleClassrooms.value.map(name => ({ label: name, value: name })))
+
+// 可看教室變動（登入狀態載入後）時，確保目前分頁仍合法
+watch(visibleClassrooms, (list) => {
+  if (!list.includes(classroom.value)) classroom.value = list[0] ?? CLASSROOMS[0]!
+}, { immediate: true })
 
 const colorItems = COLOR_OPTIONS.map(c => ({ label: c.label, value: c.value }))
 const kindItems = KIND_OPTIONS
 const repeatItems = REPEAT_OPTIONS
+
+// 手機版（< 640px）精簡顯示：星期日開頭、單字星期（日一二）、格子只顯示數字、事件不顯示時間。
+// FullCalendar 只在 client 端掛載，SSR 時預設 false 不影響。
+const isMobile = ref(false)
+onMounted(() => {
+  const mq = window.matchMedia('(max-width: 640px)')
+  const update = () => (isMobile.value = mq.matches)
+  update()
+  mq.addEventListener('change', update)
+  onUnmounted(() => mq.removeEventListener('change', update))
+})
 
 // 把「每週固定課」+「單次活動」都轉成 FullCalendar 的事件（只取目前教室）
 const calendarEvents = computed(() => {
@@ -53,7 +77,12 @@ const calendarOptions = computed<CalendarOptions>(() => ({
   plugins: [dayGridPlugin, interactionPlugin],
   initialView: 'dayGridMonth',
   locale: zhTwLocale,
-  firstDay: 1, // 週一開始
+  // 週日開頭（0）
+  firstDay: 0,
+  // 星期標題只顯示單字（日／一／二…），去掉「週」
+  dayHeaderFormat: { weekday: 'narrow' },
+  // 格子只顯示日期數字（去掉「日」字）
+  dayCellContent: (arg: { date: Date }) => String(arg.date.getDate()),
   headerToolbar: {
     left: 'prev,next today',
     center: 'title',
@@ -62,7 +91,8 @@ const calendarOptions = computed<CalendarOptions>(() => ({
   buttonText: { today: '今天' },
   height: 'auto',
   events: calendarEvents.value,
-  displayEventTime: true,
+  // 手機版不顯示事件時間，只顯示名稱
+  displayEventTime: !isMobile.value,
   // 有編輯權限才能點選與拖曳
   editable: canEdit.value,
   eventStartEditable: canEdit.value,
@@ -366,7 +396,8 @@ const modalTitle = computed(() => {
 </script>
 
 <template>
-  <UContainer class="py-8">
+  <!-- 手機版縮小左右 padding 讓課表接近滿版、日期欄位更寬；桌機維持原本留白 -->
+  <UContainer class="py-8 px-1.5 sm:px-6 lg:px-8">
     <div class="flex items-center justify-between gap-4 mb-4">
       <UTabs
         v-model="classroom"
@@ -502,7 +533,7 @@ const modalTitle = computed(() => {
   --fc-border-color: var(--ui-border);
   --fc-today-bg-color: color-mix(in oklab, var(--ui-primary) 12%, transparent);
   --fc-page-bg-color: transparent;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
 }
 .schedule-calendar :deep(.fc .fc-button-primary) {
   background: var(--ui-primary);
@@ -511,9 +542,43 @@ const modalTitle = computed(() => {
 .schedule-calendar :deep(.fc .fc-button-primary:disabled) {
   opacity: 0.5;
 }
+
+/* 拿掉最外層外框，只保留內部分隔線，版面更乾淨 */
+.schedule-calendar :deep(.fc .fc-scrollgrid) {
+  border: none;
+}
+.schedule-calendar :deep(.fc .fc-scrollgrid > tbody > tr > td),
+.schedule-calendar :deep(.fc .fc-scrollgrid > thead > tr > th) {
+  border-right: none;
+  border-bottom: none;
+}
+
+/* 星期標題：較小、置中、淡色，排版整齊 */
+.schedule-calendar :deep(.fc .fc-col-header-cell-cushion) {
+  padding: 8px 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--ui-text-muted, inherit);
+}
+
+/* 日期數字：較小、淡色、間距一致 */
+.schedule-calendar :deep(.fc .fc-daygrid-day-number) {
+  padding: 5px 7px;
+  font-size: 0.75rem;
+  color: var(--ui-text-muted, inherit);
+}
+.schedule-calendar :deep(.fc .fc-day-today .fc-daygrid-day-number) {
+  color: var(--ui-primary);
+  font-weight: 600;
+}
+
+/* 事件：字略小、行高緊湊、可換行 */
 .schedule-calendar :deep(.fc-daygrid-event) {
+  font-size: 0.75rem;
+  line-height: 1.3;
   white-space: normal;
 }
+
 /* 登入後：日期格子與事件顯示可點游標 */
 .schedule-calendar.is-editable :deep(.fc-daygrid-day),
 .schedule-calendar.is-editable :deep(.fc-event) {

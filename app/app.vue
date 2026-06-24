@@ -84,7 +84,7 @@ async function changePassword() {
             :variant="route.path === p.path ? 'soft' : 'ghost'"
             class="font-bold"
           >
-            {{ p.label }}
+            <span class="hidden sm:inline">{{ p.label }}</span>
           </UButton>
           <UButton
             v-if="isSuper"
@@ -94,7 +94,7 @@ async function changePassword() {
             :variant="route.path === '/admin' ? 'soft' : 'ghost'"
             class="font-bold"
           >
-            使用者管理
+            <span class="hidden sm:inline">使用者管理</span>
           </UButton>
         </nav>
       </template>
@@ -110,10 +110,15 @@ async function changePassword() {
             variant="ghost"
             @click="openChangePassword"
           >
-            修改密碼
+            <span class="hidden sm:inline">修改密碼</span>
           </UButton>
-          <UButton color="neutral" variant="ghost" @click="logout">
-            登出（{{ user?.name }}）
+          <UButton
+            icon="i-lucide-log-out"
+            color="neutral"
+            variant="ghost"
+            @click="logout"
+          >
+            <span class="hidden sm:inline">登出（{{ user?.name }}）</span>
           </UButton>
         </template>
         <template v-else>
@@ -123,7 +128,7 @@ async function changePassword() {
             color="neutral"
             variant="ghost"
           >
-            申請帳號
+            <span class="hidden sm:inline">申請帳號</span>
           </UButton>
           <UButton
             to="/login"
@@ -131,7 +136,7 @@ async function changePassword() {
             color="neutral"
             variant="ghost"
           >
-            登入
+            <span class="hidden sm:inline">登入</span>
           </UButton>
         </template>
       </template>

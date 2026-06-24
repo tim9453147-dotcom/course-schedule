@@ -1,0 +1,1 @@
+ALTER TABLE `contacts` ADD `step_not_broached` integer DEFAULT false NOT NULL;

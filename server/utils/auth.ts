@@ -15,6 +15,8 @@ declare module '#auth-utils' {
     isSuperAdmin?: boolean
     // 給前端導覽列用；後端強制權限時不信任這個，會重查 DB
     pages?: string[]
+    // 給前端課表分頁用：這個帳號看得到哪些教室
+    classrooms?: string[]
     loggedInAt?: number
   }
 }
@@ -28,16 +30,25 @@ export function parsePages(raw: string | null | undefined): string[] {
   }
 }
 
+// 安全解析 users.classrooms（JSON 字串陣列），擋掉壞資料與不存在的教室
+export function parseClassrooms(raw: string | null | undefined): string[] {
+  try {
+    return sanitizeClassrooms(JSON.parse(raw || '[]'))
+  } catch {
+    return []
+  }
+}
+
 export type Actor
-  = | { isSuperAdmin: true, pages: string[] }
-    | { isSuperAdmin: false, user: User, pages: string[] }
+  = | { isSuperAdmin: true, pages: string[], classrooms: string[] }
+    | { isSuperAdmin: false, user: User, pages: string[], classrooms: string[] }
 
 // 取得目前登入者的「即時」狀態（每次查 DB，所以停用/改權限會立即生效）。
 // 未登入、或帳號非 approved，皆回 null。
 export async function getActor(event: H3Event): Promise<Actor | null> {
   const session = await getUserSession(event)
   if (session.isSuperAdmin) {
-    return { isSuperAdmin: true, pages: PAGE_KEYS }
+    return { isSuperAdmin: true, pages: PAGE_KEYS, classrooms: CLASSROOMS }
   }
   const userId = session.userId
   if (!userId) return null
@@ -46,7 +57,7 @@ export async function getActor(event: H3Event): Promise<Actor | null> {
   const u = await db.select().from(users).where(eq(users.id, userId)).get()
   if (!u || u.status !== 'approved') return null
 
-  return { isSuperAdmin: false, user: u, pages: parsePages(u.pages) }
+  return { isSuperAdmin: false, user: u, pages: parsePages(u.pages), classrooms: parseClassrooms(u.classrooms) }
 }
 
 // 要求對某個頁面有權限（public 頁＝可編輯、private 頁＝可看見/使用）。

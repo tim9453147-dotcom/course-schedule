@@ -13,6 +13,7 @@ export default defineEventHandler(async (event) => {
       displayName: users.displayName,
       status: users.status,
       pages: users.pages,
+      classrooms: users.classrooms,
       note: users.note,
       createdAt: users.createdAt,
       approvedAt: users.approvedAt
@@ -20,6 +21,6 @@ export default defineEventHandler(async (event) => {
     .from(users)
     .orderBy(desc(users.createdAt))
 
-  // pages 轉成陣列方便前端使用
-  return rows.map(r => ({ ...r, pages: parsePages(r.pages) }))
+  // pages / classrooms 轉成陣列方便前端使用
+  return rows.map(r => ({ ...r, pages: parsePages(r.pages), classrooms: parseClassrooms(r.classrooms) }))
 })

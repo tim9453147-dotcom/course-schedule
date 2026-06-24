@@ -1,5 +1,4 @@
-// 教室分頁清單
-export const CLASSROOMS = ['中壢', '新竹', '台北', '台中']
+// 教室分頁清單 CLASSROOMS 已移到 shared/utils/classrooms.ts（前後端共用，自動匯入）
 
 // 課程資料型別（對應後端 D1 的 courses 表）
 export interface Course {

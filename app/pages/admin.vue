@@ -5,6 +5,7 @@ interface AdminUser {
   displayName: string
   status: 'pending' | 'approved' | 'rejected' | 'disabled'
   pages: string[]
+  classrooms: string[]
   note: string | null
   createdAt: number
   approvedAt: number | null
@@ -39,6 +40,11 @@ async function patch(id: number, body: Record<string, unknown>, okMsg?: string) 
 async function togglePage(u: AdminUser, key: string, val: boolean) {
   const next = val ? [...new Set([...u.pages, key])] : u.pages.filter(k => k !== key)
   await patch(u.id, { pages: next }, '已更新權限')
+}
+
+// 設定這個帳號看得到哪些課表（教室），可多選
+async function setClassrooms(u: AdminUser, vals: string[]) {
+  await patch(u.id, { classrooms: vals }, '已更新可看課表')
 }
 
 async function setStatus(u: AdminUser, status: AdminUser['status'], msg: string) {
@@ -158,19 +164,27 @@ async function removeUser(u: AdminUser) {
           </div>
 
           <!-- 頁面權限 -->
-          <div>
-            <p class="text-sm text-muted mb-1">
-              可用頁面
-            </p>
-            <div class="flex flex-wrap gap-4">
-              <UCheckbox
-                v-for="p in PAGES"
-                :key="p.key"
-                :model-value="u.pages.includes(p.key)"
-                :label="p.access === 'public' ? `${p.label}（可編輯）` : `${p.label}（可使用）`"
-                @update:model-value="(val: boolean | 'indeterminate') => togglePage(u, p.key, val === true)"
-              />
-            </div>
+          <div class="flex flex-wrap gap-4">
+            <UCheckbox
+              v-for="p in PAGES"
+              :key="p.key"
+              :model-value="u.pages.includes(p.key)"
+              :label="p.access === 'public' ? `${p.label}（可編輯）` : `${p.label}（可使用）`"
+              @update:model-value="(val: boolean | 'indeterminate') => togglePage(u, p.key, val === true)"
+            />
+          </div>
+
+          <!-- 可看課表（教室），可多選 -->
+          <div class="flex items-center gap-2">
+            <span class="text-sm text-muted shrink-0">可看課表</span>
+            <USelectMenu
+              :model-value="u.classrooms"
+              :items="CLASSROOMS"
+              multiple
+              placeholder="選擇可看的課表"
+              class="w-72"
+              @update:model-value="(val: string[]) => setClassrooms(u, val)"
+            />
           </div>
         </div>
       </UCard>

@@ -18,10 +18,12 @@ export default defineEventHandler(async (event) => {
       && password === config.adminPassword
       && config.adminPassword !== ''
   if (isSuper) {
-    await setUserSession(event, {
+    // replace（非 set）：完整覆寫，避免沿用上一個帳號殘留的 pages／classrooms 等陣列被合併
+    await replaceUserSession(event, {
       user: { name: username },
       isSuperAdmin: true,
       pages: PAGE_KEYS,
+      classrooms: CLASSROOMS,
       loggedInAt: Date.now()
     })
     return { ok: true }
@@ -47,11 +49,13 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 403, statusMessage: '帳號已停用' })
   }
 
-  await setUserSession(event, {
+  // replace（非 set）：完整覆寫，避免沿用上一個帳號殘留的 pages／classrooms 等陣列被合併
+  await replaceUserSession(event, {
     user: { name: u.displayName },
     userId: u.id,
     isSuperAdmin: false,
     pages: parsePages(u.pages),
+    classrooms: parseClassrooms(u.classrooms),
     loggedInAt: Date.now()
   })
   return { ok: true }

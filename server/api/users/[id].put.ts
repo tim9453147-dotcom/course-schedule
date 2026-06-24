@@ -6,6 +6,7 @@ const updateSchema = z.object({
   displayName: z.string().trim().min(1).optional(),
   status: z.enum(['pending', 'approved', 'rejected', 'disabled']).optional(),
   pages: z.array(z.string()).optional(),
+  classrooms: z.array(z.string()).optional(),
   // 重設密碼（選填）
   password: z.string().min(6).optional()
 })
@@ -25,6 +26,7 @@ export default defineEventHandler(async (event) => {
   const patch: Record<string, unknown> = {}
   if (body.displayName !== undefined) patch.displayName = body.displayName
   if (body.pages !== undefined) patch.pages = JSON.stringify(sanitizePages(body.pages))
+  if (body.classrooms !== undefined) patch.classrooms = JSON.stringify(sanitizeClassrooms(body.classrooms))
   if (body.password !== undefined) patch.passwordHash = await hashPassword(body.password)
   if (body.status !== undefined) {
     patch.status = body.status
