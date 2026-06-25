@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, '時間格式需為 HH:MM')
+const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式需為 YYYY-MM-DD')
 
 // 新增 / 編輯課程時的輸入驗證
 export const courseInputSchema = z.object({
@@ -12,14 +13,60 @@ export const courseInputSchema = z.object({
   summarizer: z.string().trim().nullish(),
   pm: z.string().trim().nullish(),
   dayOfWeek: z.coerce.number().int().min(1).max(7),
-  startTime: time,
-  endTime: time,
+  // 時間可留空（整天的每週重複）；空字串視為未指定
+  startTime: time.or(z.literal('')).default(''),
+  endTime: time.or(z.literal('')).default(''),
+  // 重複範圍與例外日（皆可選）：供「此活動及後續 / 僅這一次」拆段、排除使用
+  startDate: dateStr.or(z.literal('')).nullish(),
+  endDate: dateStr.or(z.literal('')).nullish(),
+  exDates: z.array(dateStr).default([]),
   location: z.string().trim().nullish(),
   color: z.string().trim().default('sky'),
   note: z.string().trim().nullish()
 })
 
 export type CourseInput = z.infer<typeof courseInputSchema>
+
+// ── 匯入課表（批次每週課程）──────────────────────────────
+// 星期寬鬆解析：接受數字 1–7，或中文「(星期/週/禮拜)一…六/日/天」
+const dayOfWeekLenient = z.preprocess((v) => {
+  if (typeof v === 'number') return v
+  if (typeof v === 'string') {
+    const s = v.trim()
+    if (/^\d+$/.test(s)) return Number(s)
+    const c = s.replace(/^(星期|週|禮拜)/, '')
+    const map: Record<string, number> = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 日: 7, 天: 7 }
+    return c in map ? map[c] : v
+  }
+  return v
+}, z.number().int().min(1, '星期需為 1–7').max(7, '星期需為 1–7'))
+
+// 單筆匯入課程：沿用課程規則，但 classroom 由外層帶入、color 可省略（依 kind 補預設）、不含重複範圍
+export const courseImportItemSchema = z.object({
+  kind: z.enum(['activity', 'course']).default('course'),
+  title: z.string().trim().min(1, '請輸入名稱'),
+  host: z.string().trim().nullish(),
+  sharer: z.string().trim().nullish(),
+  summarizer: z.string().trim().nullish(),
+  pm: z.string().trim().nullish(),
+  dayOfWeek: dayOfWeekLenient,
+  startTime: time.or(z.literal('')).default(''),
+  endTime: time.or(z.literal('')).default(''),
+  location: z.string().trim().nullish(),
+  color: z.string().trim().optional(),
+  note: z.string().trim().nullish()
+})
+
+export type CourseImportItem = z.infer<typeof courseImportItemSchema>
+
+// 整批匯入：選教室 + 模式 + 課程陣列。單次請求上限 45（D1 免費方案 50 query/次，前端會切塊；見 specs/0011）
+export const importCoursesSchema = z.object({
+  classroom: z.string().trim().min(1),
+  mode: z.enum(['append', 'replace']).default('append'),
+  items: z.array(courseImportItemSchema).min(1, '沒有可匯入的資料').max(45, '單次請求最多 45 筆')
+})
+
+export type ImportCoursesInput = z.infer<typeof importCoursesSchema>
 
 // 新增 / 編輯單次活動時的輸入驗證
 export const eventInputSchema = z.object({

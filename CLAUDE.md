@@ -38,22 +38,47 @@ Full-stack **Nuxt 4** app. The frontend AND the API live in one project; Nitro b
 
 **Migrations are split-tool:** drizzle-kit only *generates* SQL (`server/db/migrations/`). Applying it is done by **wrangler**, not `drizzle-kit push` — local and remote D1 are separate databases, hence the `:local` / `:remote` script pair. After editing `server/db/schema.ts`: `db:generate` → `db:migrate:local` (and `db:migrate:remote` before/after deploy).
 
-**Auth:** single admin, no users table. `server/api/auth/login.post.ts` compares against `runtimeConfig` values fed by env vars `NUXT_ADMIN_USERNAME` / `NUXT_ADMIN_PASSWORD`; the session cookie is sealed with `NUXT_SESSION_PASSWORD`. Locally these come from `.env` (gitignored; see `.env.example`). On Cloudflare they are Pages secrets — adding/changing a secret only takes effect on the **next deployment**.
+**Auth & permissions:** two kinds of principal.
+- **Super admin** — env-var account, *not* in the DB. `server/api/auth/login.post.ts` checks `runtimeConfig.adminUsername`/`adminPassword` (from `NUXT_ADMIN_USERNAME` / `NUXT_ADMIN_PASSWORD`) first; match ⇒ full access to every page and classroom.
+- **DB users** (`users` table) — self-apply via `POST /api/auth/apply` (status `pending`), then a super admin approves/grants pages in `/admin`. `status` gates login (`pending`/`rejected`/`disabled` are refused); `pages` (JSON array of page keys) and `classrooms` (JSON array) scope what they can do.
 
-### Data model (4 tables in `server/db/schema.ts`)
+Session cookie is sealed with `NUXT_SESSION_PASSWORD`. Login uses `replaceUserSession` (not `set`) so a re-login never merges the previous account's `pages`/`classrooms`. Locally these env vars come from `.env` (gitignored; see `.env.example`); on Cloudflare they are Pages secrets — a secret change only takes effect on the **next deployment**.
 
-- `courses` — weekly recurring classes (`dayOfWeek` 1–7, `startTime`/`endTime` as `HH:MM`).
+**The permission model is page-based and lives in `shared/utils/`** (Nuxt auto-imports `shared/` on both client and server — single source of truth):
+- `pages.ts` — `PAGES` registry. Each page has a `key`, `path`, and `access`: `public` (everyone sees it; permission decides whether you can *edit*) or `private` (hidden unless you have the key; permission decides whether you can *see/use* it). Adding a feature page = add one `PAGES` entry, and the nav bar, route guard, `/admin` checkbox grid, and backend `requirePage` all pick it up.
+- `classrooms.ts` — `CLASSROOMS` list + `sanitizeClassrooms`. New/anonymous users default to `中壢` only.
+
+Enforcement is layered — **the frontend guard is cosmetic, the backend is authoritative**:
+- Backend: every mutating route calls `await requirePage(event, '<key>')` or `requireSuperAdmin(event)` (`server/utils/auth.ts`). `getActor()` re-reads the DB on every request (so disabling/regranting takes effect immediately and the session's cached `pages` is never trusted server-side).
+- Frontend: `app/middleware/auth.global.ts` hides routes the session can't access; `useCanEdit(key)` (`app/composables/`) toggles edit affordances in the UI.
+
+**Per-user data ownership (CRM):** `contacts`/`contact_stages` rows belong to a user — `userId = users.id` for normal users, `NULL` for the super admin (each principal sees only their own list). Routes scope queries with `ownerKey(actor)` + `ownedBy(column, key)` (the latter handles `IS NULL` correctly).
+
+### Data model (`server/db/schema.ts`)
+
+Schedule/equipment:
+- `courses` — weekly recurring classes (`dayOfWeek` 1–7, `startTime`/`endTime` as `HH:MM`). `kind` (`course`/`activity`) is a label affecting default color and whether role fields show.
 - `events` — one-off dated items (`date` `YYYY-MM-DD`; null `startTime` ⇒ all-day).
 - `equipment` — items with `totalQty`, grouped by `classroom`.
 - `rentals` — borrow records; `returnDate IS NULL` means "still out". Available qty = `totalQty − sum(open rentals)`, computed in `server/utils/inventory.ts` and enforced on borrow.
 
-`courses`/`events`/`equipment` carry a `classroom` field (中壢/新竹/台北/台中, default 中壢) — see `CLASSROOMS` in `app/utils/schedule.ts`. The calendar filters by a classroom tab; the equipment page is currently pinned to 中壢 only.
+Accounts & CRM:
+- `users` — DB accounts (see Auth above). `passwordHash` is nuxt-auth-utils scrypt.
+- `contacts` — CRM leads, owned per-user. `broached` is a fixed boolean; `completedStages` is a JSON array of `contact_stages.id`. `nextFollowUp` is derived from `lastFollowUp` + `followUpFreq` via `computeNextFollowUp` (`server/utils/followup.ts`).
+- `contact_stages` — per-user customizable funnel stages (rename/reorder/delete).
+- `follow_up_logs` — timeline entries, many per contact.
+
+`courses`/`events`/`equipment` carry a `classroom` field (中壢/新竹/台北/台中, default 中壢). The calendar filters by a classroom tab and only shows tabs the user's `classrooms` allow; the equipment page is hard-pinned to 中壢 (`app/pages/equipment.vue`).
 
 ### Frontend specifics
 
-- All schedule editing happens **inline on the FullCalendar** in `app/pages/index.vue` (there is intentionally no admin page). Logged-in admins: click empty date = create, click event = edit, drag = reschedule (`eventDrop` updates the date for events, or shifts `dayOfWeek` by `info.delta.days` for courses). Gated on `loggedIn`.
+- All schedule editing happens **inline on the FullCalendar** in `app/pages/index.vue` (there is intentionally no schedule-admin page — `/admin` is for user management only). With `useCanEdit('calendar')`: click empty date = create, click event = edit, drag = reschedule (`eventDrop` updates the date for events, or shifts `dayOfWeek` by `info.delta.days` for courses).
 - FullCalendar must render inside `<ClientOnly>`. Weekday mapping differs: our `dayOfWeek` is 1=Mon…7=Sun, FullCalendar's `daysOfWeek` is 0=Sun…6=Sat (`dayOfWeek % 7`).
 - **Colors are stored as names** (`sky`, `rose`, …). Tailwind classes must be written out literally (`COLOR_OPTIONS` in `app/utils/schedule.ts`) — never build class strings dynamically or Tailwind won't emit them. FullCalendar needs real hex, so there's a parallel `COLOR_HEX` map.
+
+## Conventions
+
+- **Spec-per-change:** non-trivial changes get a committed, numbered design doc under `specs/` (e.g. `0009-fix-frontend-edit-gating.md`) before/with the implementation. Commit messages are Conventional Commits, often in Chinese. Comments and UI copy are in Traditional Chinese — match the surrounding style.
 
 ## Deploy notes
 

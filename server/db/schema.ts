@@ -16,9 +16,18 @@ export const courses = sqliteTable('courses', {
   pm: text('pm'),
   // 星期：1=週一 ... 7=週日
   dayOfWeek: integer('day_of_week').notNull(),
-  // 開始 / 結束時間，存成 "HH:MM" 字串，例如 "08:10"
+  // 開始 / 結束時間，存成 "HH:MM" 字串，例如 "08:10"；空字串代表整天（不指定時間）
   startTime: text('start_time').notNull(),
   endTime: text('end_time').notNull(),
+  // 重複範圍（含端點，"YYYY-MM-DD"）：startDate=起始下界、endDate=結束上界；
+  // 皆為 null 代表不限／永遠。供「此活動及後續」拆段使用（像 Google 日曆）。
+  startDate: text('start_date'),
+  endDate: text('end_date'),
+  // 例外日（JSON 字串陣列，"YYYY-MM-DD"）：被「僅這一次」抽掉、改成單次活動覆寫的日期。
+  exDates: text('ex_dates', { mode: 'json' })
+    .$type<string[]>()
+    .notNull()
+    .default([]),
   // 教室 / 地點
   location: text('location'),
   // 顯示用的顏色（Tailwind 色名，例如 "sky"、"rose"）

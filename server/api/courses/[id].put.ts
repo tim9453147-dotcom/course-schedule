@@ -15,7 +15,12 @@ export default defineEventHandler(async (event) => {
 
   const [updated] = await db
     .update(courses)
-    .set(data)
+    .set({
+      ...data,
+      // 空字串的範圍日期視為「不限」存成 null
+      startDate: data.startDate || null,
+      endDate: data.endDate || null
+    })
     .where(eq(courses.id, id))
     .returning()
 

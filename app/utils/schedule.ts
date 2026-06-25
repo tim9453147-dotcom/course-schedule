@@ -13,6 +13,11 @@ export interface Course {
   dayOfWeek: number
   startTime: string
   endTime: string
+  // 重複範圍（含端點，"YYYY-MM-DD"）；null=不限／永遠
+  startDate: string | null
+  endDate: string | null
+  // 例外日（被「僅這一次」抽掉的日期）
+  exDates: string[]
   location: string | null
   color: string
   note: string | null
