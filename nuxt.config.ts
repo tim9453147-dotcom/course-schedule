@@ -23,7 +23,10 @@ export default defineNuxtConfig({
     //   NUXT_ADMIN_USERNAME / NUXT_ADMIN_PASSWORD
     // session 加密用 NUXT_SESSION_PASSWORD（nuxt-auth-utils 自動讀取）
     adminUsername: '',
-    adminPassword: ''
+    adminPassword: '',
+    // Gemini 圖片辨識匯入（免費方案）：NUXT_GEMINI_API_KEY / NUXT_GEMINI_MODEL
+    geminiApiKey: '',
+    geminiModel: 'gemini-2.5-flash'
   },
 
   compatibilityDate: '2025-01-15',

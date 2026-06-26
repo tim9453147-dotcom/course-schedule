@@ -519,6 +519,10 @@ const importMode = ref<'append' | 'replace'>('append')
 const importText = ref('')
 const importProgress = ref('')
 
+// 上傳圖片用 Gemini 辨識成匯入 JSON（見 specs/0013）
+const aiLoading = ref(false)
+const aiFileInput = useTemplateRef<HTMLInputElement>('aiFileInput')
+
 const importModeItems = [
   { value: 'append', label: '附加', description: '保留此教室原本的活動，匯入的直接新增上去' },
   { value: 'replace', label: '覆蓋此區間', description: '先刪除此教室在匯入日期範圍內的活動，再匯入' }
@@ -669,6 +673,58 @@ async function confirmImport() {
     toast.add({ title: '匯入失敗', description: desc, color: 'error' })
   } finally {
     importing.value = false
+  }
+}
+
+/* ---------- 上傳圖片 → Gemini 辨識成匯入 JSON ---------- */
+// 把圖縮到長邊 ≤ maxEdge、輸出 image/jpeg base64（不含 data: 前綴），降低 token 與上傳量
+function shrinkImage(file: File, maxEdge = 1600): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const fr = new FileReader()
+    fr.onerror = () => reject(new Error('讀取圖片失敗'))
+    fr.onload = () => {
+      img.onerror = () => reject(new Error('解析圖片失敗'))
+      img.onload = () => {
+        const scale = Math.min(1, maxEdge / Math.max(img.width, img.height))
+        const canvas = document.createElement('canvas')
+        canvas.width = Math.round(img.width * scale)
+        canvas.height = Math.round(img.height * scale)
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return reject(new Error('無法處理圖片'))
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+        resolve(canvas.toDataURL('image/jpeg', 0.85).split(',')[1] || '')
+      }
+      img.src = fr.result as string
+    }
+    fr.readAsDataURL(file)
+  })
+}
+
+function pickAiImage() {
+  aiFileInput.value?.click()
+}
+
+async function onAiImage(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  aiLoading.value = true
+  try {
+    const imageBase64 = await shrinkImage(file)
+    const { text } = await $fetch<{ text: string }>('/api/events/ai-extract', {
+      method: 'POST',
+      body: { imageBase64, mimeType: 'image/jpeg', defaultYear: new Date().getFullYear() }
+    })
+    importText.value = text
+    const n = importParsed.value?.rows.length ?? 0
+    toast.add({ title: `已辨識 ${n} 筆，請核對後再匯入`, color: 'success' })
+  } catch (err) {
+    const msg = (err as { statusMessage?: string })?.statusMessage || '圖片辨識失敗，請改用手動貼上 JSON'
+    toast.add({ title: '辨識失敗', description: msg, color: 'error' })
+  } finally {
+    aiLoading.value = false
+    input.value = '' // 清掉以便重選同一張
   }
 }
 </script>
@@ -841,9 +897,34 @@ async function confirmImport() {
             </UFormField>
           </div>
 
+          <!-- 上傳課表圖片，交給 Gemini 辨識並自動填入下方 JSON（見 specs/0013） -->
+          <div>
+            <input
+              ref="aiFileInput"
+              type="file"
+              accept="image/*"
+              class="hidden"
+              @change="onAiImage"
+            >
+            <UButton
+              icon="i-lucide-image-up"
+              color="neutral"
+              variant="soft"
+              block
+              :loading="aiLoading"
+              :disabled="importing"
+              @click="pickAiImage"
+            >
+              {{ aiLoading ? '辨識中…' : '上傳課表圖片，自動辨識' }}
+            </UButton>
+            <p class="mt-1 text-xs text-muted">
+              用 AI 把課表圖片轉成下方 JSON；辨識可能有誤（尤其人名），請務必核對預覽再匯入。
+            </p>
+          </div>
+
           <UFormField label="課表 JSON">
             <template #help>
-              <span>貼上 AI 從課表圖片轉出的 JSON 陣列。</span>
+              <span>上傳圖片自動產生，或貼上 AI 轉出的 JSON 陣列。</span>
               <UButton variant="link" size="xs" class="p-0 align-baseline" @click="copyAiPrompt">
                 複製 AI 指令
               </UButton>

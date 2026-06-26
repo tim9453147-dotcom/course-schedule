@@ -158,6 +158,7 @@ cp .env.example .env
 #   NUXT_ADMIN_USERNAME=admin
 #   NUXT_ADMIN_PASSWORD=你的密碼
 #   NUXT_SESSION_PASSWORD=至少32字元隨機字串（openssl rand -base64 32）
+#   NUXT_GEMINI_API_KEY=（選用，給「上傳圖片自動辨識」用；留空則該功能停用）
 
 # 3. 建立本地 D1 資料表（套用 migration）
 bun run db:migrate:local
@@ -202,6 +203,10 @@ echo -n "$(openssl rand -base64 32)" | bunx wrangler pages secret put NUXT_SESSI
 echo -n "admin"            | bunx wrangler pages secret put NUXT_ADMIN_USERNAME --project-name course-schedule-2689336
 echo -n "你的強密碼"        | bunx wrangler pages secret put NUXT_ADMIN_PASSWORD --project-name course-schedule-2689336
 
+# 5b.（選用）圖片辨識匯入：設定 Gemini API key（到 https://aistudio.google.com 免費申請）
+#     不設也沒關係，只是「上傳課表圖片，自動辨識」會停用；手動貼 JSON 匯入照常可用
+echo -n "你的 Gemini API key" | bunx wrangler pages secret put NUXT_GEMINI_API_KEY --project-name course-schedule-2689336
+
 # 6. build 並部署
 bun run build
 bunx wrangler pages deploy dist --project-name course-schedule-2689336 --branch main
@@ -211,6 +216,37 @@ bunx wrangler pages deploy dist --project-name course-schedule-2689336 --branch 
 之後每次要更新線上版，重跑第 6 步即可；改了資料表則先 `bun run db:migrate:remote`。
 
 > 也可以改用 Cloudflare 後台網頁設定密鑰：Pages 專案 → Settings → Variables and Secrets。
+>
+> ⚠️ **密鑰改了要重新部署才生效**：`wrangler pages secret put` 之後，新值會等到下一次 `pages deploy`（第 6 步）才套用到線上。新增或更換 `NUXT_GEMINI_API_KEY` 後記得重跑第 6 步。
+
+### 更新線上祕鑰（事後修改）
+
+之後要改某把線上祕鑰（例如換 `NUXT_GEMINI_API_KEY`、改管理員密碼）時，**重點：改完一定要重新部署才會生效**——祕鑰是在 build／deploy 當下被打包進去的。任一把祕鑰都適用，只是換個名字。
+
+**方式 A：用指令（wrangler）**
+
+```bash
+# 0. 先把新版 node 放到 PATH（這專案的老問題，wrangler 沒它會壞）
+export PATH=/home/tim/.local/share/mise/installs/node/24.11.1/bin:$PATH
+
+# 1. 首次或登入過期才要做（會開瀏覽器）
+bunx wrangler login
+
+# 2. 設定／更新祕鑰 → 會提示你貼上值
+bunx wrangler pages secret put NUXT_GEMINI_API_KEY --project-name course-schedule-2689336
+
+# 3. 重新部署，祕鑰才生效
+bun run deploy
+```
+
+**方式 B：用 Cloudflare 後台網頁**
+
+1. 登入 Cloudflare → **Workers & Pages** → 點 **course-schedule-2689336**。
+2. **Settings → Variables and Secrets**。
+3. 找到要改的祕鑰（沒有就新增），Type 選 **Secret**，填入新值 → **Save**。
+4. **重新部署**：到 **Deployments** 頁對最新一筆按 **⋯ → Retry deployment**，或在本機跑 `bun run deploy`。
+
+> 兩種方式做完都要記得最後的**重新部署**，否則線上仍是舊值。
 
 ## 常用指令
 
