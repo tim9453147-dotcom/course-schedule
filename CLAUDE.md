@@ -2,17 +2,15 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## ⚠️ Node version gotcha (read first)
+## ⚠️ Run everything through `just` (read first)
 
-The machine's default `node` is **v11**, far too old for Nuxt — `nuxt`/`wrangler`/`drizzle-kit` will crash with `SyntaxError: Unexpected identifier` on `import`. Before running any command, put a modern node on PATH:
+The repo ships a `justfile` whose recipes pin fnm's Node **v22** onto `PATH`, so `just dev` / `just deploy` / `just db-migrate-local` etc. always run under the right node — even from a clean/non-interactive shell. Run `just` with no args to list recipes; recipe names map to the package scripts (replace `:` with `-`, e.g. `just db-migrate-local` → `bun run db:migrate:local`). **Use `just`; don't worry about node version.**
 
-```bash
-export PATH=/home/tim/.local/share/mise/installs/node/24.11.1/bin:$PATH   # or: fnm use 22
-```
-
-Bun itself is fine, but the package scripts shell out to node-shebang binaries that resolve to v11 otherwise. This applies to `bun install` (postinstall runs `nuxt prepare`), `bun dev`, `bun run build`, and every `bunx wrangler …` call.
+Why it matters (only relevant if you bypass `just` and run `bun`/`bunx` directly): the machine's default `node` (`/usr/bin/node`) is **v18.19.1**, below Nuxt 4's required Node 20+, so `nuxt`/`wrangler`/`drizzle-kit` may crash with `SyntaxError: Unexpected identifier` on `import`. In that case put v22 on PATH yourself first (`fnm use 22`). Bun's package scripts shell out to node-shebang binaries that can resolve to the older `/usr/bin/node` otherwise.
 
 ## Commands
+
+Prefer the `just` wrapper (auto-pins node v22); the raw `bun` scripts below are the underlying equivalents.
 
 ```bash
 bun install                 # install deps (needs modern node for postinstall)
@@ -43,6 +41,8 @@ Full-stack **Nuxt 4** app. The frontend AND the API live in one project; Nitro b
 - **DB users** (`users` table) — self-apply via `POST /api/auth/apply` (status `pending`), then a super admin approves/grants pages in `/admin`. `status` gates login (`pending`/`rejected`/`disabled` are refused); `pages` (JSON array of page keys) and `classrooms` (JSON array) scope what they can do.
 
 Session cookie is sealed with `NUXT_SESSION_PASSWORD`. Login uses `replaceUserSession` (not `set`) so a re-login never merges the previous account's `pages`/`classrooms`. Locally these env vars come from `.env` (gitignored; see `.env.example`); on Cloudflare they are Pages secrets — a secret change only takes effect on the **next deployment**.
+
+`runtimeConfig` (`nuxt.config.ts`) maps these env vars: `NUXT_ADMIN_USERNAME`/`NUXT_ADMIN_PASSWORD` (super admin), `NUXT_SESSION_PASSWORD` (cookie seal), and `NUXT_GEMINI_API_KEY`/`NUXT_GEMINI_MODEL` (image-import OCR — see below).
 
 **The permission model is page-based and lives in `shared/utils/`** (Nuxt auto-imports `shared/` on both client and server — single source of truth):
 - `pages.ts` — `PAGES` registry. Each page has a `key`, `path`, and `access`: `public` (everyone sees it; permission decides whether you can *edit*) or `private` (hidden unless you have the key; permission decides whether you can *see/use* it). Adding a feature page = add one `PAGES` entry, and the nav bar, route guard, `/admin` checkbox grid, and backend `requirePage` all pick it up.
@@ -75,6 +75,12 @@ Accounts & CRM:
 - All schedule editing happens **inline on the FullCalendar** in `app/pages/index.vue` (there is intentionally no schedule-admin page — `/admin` is for user management only). With `useCanEdit('calendar')`: click empty date = create, click event = edit, drag = reschedule (`eventDrop` updates the date for events, or shifts `dayOfWeek` by `info.delta.days` for courses).
 - FullCalendar must render inside `<ClientOnly>`. Weekday mapping differs: our `dayOfWeek` is 1=Mon…7=Sun, FullCalendar's `daysOfWeek` is 0=Sun…6=Sat (`dayOfWeek % 7`).
 - **Colors are stored as names** (`sky`, `rose`, …). Tailwind classes must be written out literally (`COLOR_OPTIONS` in `app/utils/schedule.ts`) — never build class strings dynamically or Tailwind won't emit them. FullCalendar needs real hex, so there's a parallel `COLOR_HEX` map.
+
+### Bulk import & AI image recognition (specs 0011–0013)
+
+The import modal in `app/pages/index.vue` turns a batch of dated classes into `events`. The pipeline is **draft JSON → editable preview → confirm → `POST /api/events/import`** — a human always reviews before anything is written, so OCR mistakes (especially Chinese names) get caught at the preview step. The JSON shape is `eventImportItemSchema` (`title`+`date` required, plus `startTime`/`endTime`/`host`/`sharer`/`summarizer`/`pm`/`location`/`note`); imports are always `kind: course` and the classroom is picked in the modal.
+
+The JSON can be typed by hand or produced from a photo: "上傳課表圖片" sends a client-shrunk (canvas, long edge ≤1600px, JPEG base64) image to `POST /api/events/ai-extract`, which calls **Gemini** (`gemini-2.5-flash`, free tier) via REST — no SDK, for Workers compatibility. That route forces JSON out with a `responseSchema` and **returns the model's JSON string verbatim** into the preview box; it never touches the DB. Needs `NUXT_GEMINI_API_KEY` (missing key ⇒ 500, but manual-paste import still works); the OCR/role-extraction rules live entirely in the prompt inside `ai-extract.post.ts`.
 
 ## Conventions
 

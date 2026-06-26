@@ -25,12 +25,13 @@
   - `generationConfig.responseMimeType = 'application/json'`
   - `generationConfig.responseSchema`：`ARRAY` of `OBJECT`，properties 全 `STRING`，`required: ['title','date']`。
 - PROMPT 辨識規則：
-  1. 只擷取課程內容，值星小組／佈置／頁首頁尾等非課程資訊忽略；「DST」也是一堂課須列出。
-  2. `host`/`sharer`/`summarizer`/`pm`（值星小組欄位）一律留空。
-  3. `date` 缺年份時用傳入的 `defaultYear`。
-  4. `startTime`：有寫用寫的；沒寫時 DST→18:30、週一至週五→19:30、週末/無法判斷留空。
-  5. `endTime` 有寫才用、不自行推算；`location` 依課表標題/表頭、個別沒標就留空；`note` 沒寫留空。
-  6. 只輸出 JSON 陣列。
+  1. 只擷取課程內容，佈置／頁首頁尾等非課程資訊忽略；「DST」也是一堂課須列出。
+  2. 角色欄位要擷取：縮寫「H」＝主持→`host`、「C」＝總結→`summarizer`；有「分享」→`sharer`、「PM」→`pm`，沒有就留空。
+  3.「值星小組」是另一區塊，整塊忽略、不放進任何欄位（且不影響 H/C 等角色擷取）。
+  4. `date` 缺年份時用傳入的 `defaultYear`。
+  5. `startTime`：有寫用寫的；沒寫時 DST→18:30、週一至週五→19:30、週末/無法判斷留空。
+  6. `endTime` 有寫才用、不自行推算；`location` 依課表標題/表頭、個別沒標就留空；`note` 沒寫留空。
+  7. 只輸出 JSON 陣列。
 - 取 `candidates[0].content.parts[0].text`，原樣回 `{ text }`。
 - 錯誤：429 → 429「AI 服務忙碌或已達免費上限」；其他非 200 / 連線失敗 → 502；無 candidates → 422。
 
