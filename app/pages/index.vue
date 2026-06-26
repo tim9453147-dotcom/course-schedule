@@ -34,17 +34,6 @@ const colorItems = COLOR_OPTIONS.map(c => ({ label: c.label, value: c.value }))
 const kindItems = KIND_OPTIONS
 const repeatItems = REPEAT_OPTIONS
 
-// 手機版（< 640px）精簡顯示：星期日開頭、單字星期（日一二）、格子只顯示數字、事件不顯示時間。
-// FullCalendar 只在 client 端掛載，SSR 時預設 false 不影響。
-const isMobile = ref(false)
-onMounted(() => {
-  const mq = window.matchMedia('(max-width: 640px)')
-  const update = () => (isMobile.value = mq.matches)
-  update()
-  mq.addEventListener('change', update)
-  onUnmounted(() => mq.removeEventListener('change', update))
-})
-
 // FullCalendar 目前可見的日期範圍（含前後補格；end 為「不含」上界）。
 // 每週課改為「手動展開」成個別日期實例（才能套用 startDate/endDate/exDates），
 // 故需要知道要展開到哪段範圍；datesSet 會在初次渲染與換月時更新它。
@@ -134,8 +123,8 @@ const calendarOptions = computed<CalendarOptions>(() => ({
   buttonText: { today: '今天' },
   height: 'auto',
   events: calendarEvents.value,
-  // 手機版不顯示事件時間，只顯示名稱
-  displayEventTime: !isMobile.value,
+  // 月曆事件只顯示名稱，不顯示時間
+  displayEventTime: false,
   // 有編輯權限才能點選與拖曳
   editable: canEdit.value,
   eventStartEditable: canEdit.value,
@@ -522,7 +511,7 @@ const modalTitle = computed(() => {
   return (mode.value === 'create' ? '新增' : '編輯') + t
 })
 
-/* ---------- 匯入課表（貼上 JSON 批次匯入每週課程）---------- */
+/* ---------- 匯入課表（貼上 JSON 批次依日期匯入單次活動）---------- */
 const importOpen = ref(false)
 const importing = ref(false)
 const importClassroom = ref(classroom.value)
@@ -531,19 +520,20 @@ const importText = ref('')
 const importProgress = ref('')
 
 const importModeItems = [
-  { value: 'append', label: '附加', description: '保留此教室原本的課程，匯入的直接新增上去' },
-  { value: 'replace', label: '覆蓋此教室', description: '先刪除此教室現有的所有每週課程，再匯入' }
+  { value: 'append', label: '附加', description: '保留此教室原本的活動，匯入的直接新增上去' },
+  { value: 'replace', label: '覆蓋此區間', description: '先刪除此教室在匯入日期範圍內的活動，再匯入' }
 ]
 
 // 餵給 AI 把課表圖片轉成 JSON 的指令（「複製 AI 指令」按鈕用）
-const AI_PROMPT = '把這張課表圖片轉成 JSON 陣列，每堂課一個物件，欄位：title、kind（course 或 activity）、dayOfWeek（1=週一…7=週日）、startTime/endTime（24 小時 HH:MM，整天留空）、host/sharer/summarizer/pm、location、note。只輸出 JSON，不要其他文字。'
+const AI_PROMPT = '把這張課表圖片轉成 JSON 陣列，每筆一個物件，欄位：title、date（西元日期 YYYY-MM-DD）、startTime/endTime（24 小時 HH:MM，整天留空）、host/sharer/summarizer/pm、location、note。只輸出 JSON，不要其他文字。'
 
-const importPlaceholder = '[ { "title": "微積分", "kind": "course", "dayOfWeek": 1, "startTime": "08:10", "endTime": "09:00" } ]'
+const importPlaceholder = '[ { "title": "超凡訓練", "date": "2026-06-04", "startTime": "19:30", "endTime": "21:00" } ]'
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 interface ParsedRow {
-  kind: 'course' | 'activity'
   title: string
-  dayOfWeek: number | null
+  date: string
   startTime: string
   endTime: string
   host: string
@@ -552,22 +542,6 @@ interface ParsedRow {
   pm: string
   location: string
   note: string
-}
-
-// 星期寬鬆解析（與後端 dayOfWeekLenient 一致）：數字 1–7 或中文「(星期/週/禮拜)一…日/天」
-function normalizeDow(v: unknown): number | null {
-  if (typeof v === 'number') return v >= 1 && v <= 7 ? v : null
-  if (typeof v === 'string') {
-    const s = v.trim()
-    if (/^\d+$/.test(s)) {
-      const n = Number(s)
-      return n >= 1 && n <= 7 ? n : null
-    }
-    const c = s.replace(/^(星期|週|禮拜)/, '')
-    const map: Record<string, number> = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 日: 7, 天: 7 }
-    return map[c] ?? null
-  }
-  return null
 }
 
 // 時間正規化：'8:5'→'08:05'、空→''、格式不符回原字串（讓預覽標錯）
@@ -611,17 +585,16 @@ function parseImport() {
     }
     const it = raw as Record<string, unknown>
     const title = str(it.title)
-    if (!title) errors.push(`第 ${n} 筆缺少課程名稱`)
-    const dayOfWeek = normalizeDow(it.dayOfWeek)
-    if (dayOfWeek === null) errors.push(`第 ${n} 筆星期無法判讀（${str(it.dayOfWeek) || '空白'}）`)
+    if (!title) errors.push(`第 ${n} 筆缺少名稱`)
+    const date = str(it.date)
+    if (!DATE_RE.test(date)) errors.push(`第 ${n} 筆日期格式需為 YYYY-MM-DD（${date || '空白'}）`)
     const startTime = normalizeTime(it.startTime)
     const endTime = normalizeTime(it.endTime)
     if (startTime && !TIME_RE.test(startTime)) errors.push(`第 ${n} 筆開始時間格式錯誤（${startTime}）`)
     if (endTime && !TIME_RE.test(endTime)) errors.push(`第 ${n} 筆結束時間格式錯誤（${endTime}）`)
     rows.push({
-      kind: it.kind === 'activity' ? 'activity' : 'course',
       title,
-      dayOfWeek,
+      date,
       startTime,
       endTime,
       host: str(it.host),
@@ -670,21 +643,25 @@ async function confirmImport() {
   }
   const CHUNK = 40 // D1 免費方案 50 query/次，留邊；超過就切多次請求
   const rows = parsed.rows
+  // 覆蓋模式只清除整批 items 的日期區間（min/max），避免清掉其他月份
+  const dates = rows.map(r => r.date).sort()
+  const replaceFrom = dates[0]
+  const replaceTo = dates[dates.length - 1]
   importing.value = true
   let done = 0
   try {
     for (let i = 0; i < rows.length; i += CHUNK) {
       const chunk = rows.slice(i, i + CHUNK)
-      // 覆蓋模式只在第一塊清空該教室，其餘塊一律附加
+      // 覆蓋模式只在第一塊刪除該區間，其餘塊一律附加
       const chunkMode = importMode.value === 'replace' && i === 0 ? 'replace' : 'append'
-      await $fetch('/api/courses/import', {
+      await $fetch('/api/events/import', {
         method: 'POST',
-        body: { classroom: importClassroom.value, mode: chunkMode, items: chunk }
+        body: { classroom: importClassroom.value, mode: chunkMode, replaceFrom, replaceTo, items: chunk }
       })
       done += chunk.length
       if (rows.length > CHUNK) importProgress.value = `已匯入 ${done} / ${rows.length}…`
     }
-    await refreshCourses()
+    await refreshEvents()
     toast.add({ title: `已匯入 ${done} 筆到 ${importClassroom.value}`, color: 'success' })
     importOpen.value = false
   } catch {
@@ -851,7 +828,7 @@ async function confirmImport() {
       </template>
     </UModal>
 
-    <!-- 匯入課表（選教室＋貼上 JSON＋預覽確認，批次匯入每週課程） -->
+    <!-- 匯入課表（選教室＋貼上 JSON＋預覽確認，批次依日期匯入單次活動） -->
     <UModal v-model:open="importOpen" title="匯入課表" :ui="{ content: 'max-w-2xl' }">
       <template #body>
         <div class="space-y-4">
@@ -887,7 +864,7 @@ async function confirmImport() {
               </p>
             </div>
             <p class="text-sm text-muted">
-              共 {{ importParsed.rows.length }} 筆<span v-if="importMode === 'replace'">（將覆蓋 {{ importClassroom }} 現有課程）</span>
+              共 {{ importParsed.rows.length }} 筆<span v-if="importMode === 'replace'">（將覆蓋 {{ importClassroom }} 在此日期範圍內的活動）</span>
             </p>
             <div v-if="importParsed.rows.length" class="max-h-56 overflow-auto rounded border border-default text-sm">
               <table class="w-full">
@@ -897,10 +874,7 @@ async function confirmImport() {
                       名稱
                     </th>
                     <th class="text-left px-2 py-1">
-                      類型
-                    </th>
-                    <th class="text-left px-2 py-1">
-                      星期
+                      日期
                     </th>
                     <th class="text-left px-2 py-1">
                       時間
@@ -916,10 +890,7 @@ async function confirmImport() {
                       {{ r.title || '—' }}
                     </td>
                     <td class="px-2 py-1">
-                      {{ r.kind === 'course' ? '課程' : '活動' }}
-                    </td>
-                    <td class="px-2 py-1">
-                      {{ r.dayOfWeek ? dayName(r.dayOfWeek) : '？' }}
+                      {{ r.date || '？' }}
                     </td>
                     <td class="px-2 py-1">
                       {{ r.startTime ? `${r.startTime}–${r.endTime || ''}` : '整天' }}

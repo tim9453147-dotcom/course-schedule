@@ -65,57 +65,65 @@ drizzle.config.ts      # drizzle-kit 設定
 
 ## 匯入課表（批次貼上 JSON）
 
-課表來源常常是一張圖片，可以先用 AI（例如把圖片貼給 Claude / ChatGPT）轉成 JSON，再一次匯入整份每週課程，不用一筆筆在月曆上點。
+課表來源常常是一張圖片，可以先用 AI（例如把圖片貼給 Claude / ChatGPT）轉成 JSON，再**依日期**一次匯入整個月的活動，不用一筆筆在月曆上點。
 
 **使用流程**（首頁月曆，登入後）：
 
 1. 點工具列右上的 **「匯入」**。
 2. 選 **匯入到教室**（資料不必寫教室，由這裡決定）。
 3. 選 **模式**：
-   - **附加**：保留該教室原本的課程，匯入的直接新增上去。
-   - **覆蓋此教室**：先刪掉該教室現有的所有每週課程，再匯入（適合「換一份新課表」）。
+   - **附加**：保留該教室原本的活動，匯入的直接新增上去。
+   - **覆蓋此區間**：先刪掉該教室在「這次匯入日期範圍（最早～最晚日期）」內的活動，再匯入（適合「重貼某個月的新版課表」，不會動到其他月份）。
 4. 把 JSON 貼進文字框（可按 **「複製 AI 指令」** 拿到給 AI 用的提示詞）。
 5. 按 **「解析預覽」** 核對表格與錯誤提示，沒問題再按 **「確認匯入」**。
 
-> 只會匯入「每週固定課（courses）」；單次活動（events）請在月曆上單獨新增。
+> 匯入一律存成「單次活動（events）」，分類固定為「課程（course）」——來源 JSON 即使寫了其他 `kind` 也會被忽略。每週固定課（courses）請在月曆上單獨新增。
 
 ### JSON 格式
 
-最外層是一個**陣列**，每堂課一個物件：
+最外層是一個**陣列**，每筆活動一個物件：
 
 | 欄位 | 必填 | 說明 |
 | --- | --- | --- |
-| `title` | ✅ | 課程／活動名稱 |
-| `kind` | | `course`（課程）或 `activity`（活動），省略預設 `course` |
-| `dayOfWeek` | ✅ | 星期：數字 `1`–`7`（1=週一…7=週日），或中文（`週一`、`一`、`星期三`、`五`…皆可） |
-| `startTime` | | 開始時間，24 小時制 `HH:MM`（例 `08:10`）。整天課留空 `""` 或省略 |
+| `title` | ✅ | 名稱 |
+| `date` | ✅ | 西元日期 `YYYY-MM-DD`（例 `2026-06-04`） |
+| `startTime` | | 開始時間，24 小時制 `HH:MM`（例 `19:30`）。整天留空 `""` 或省略 |
 | `endTime` | | 結束時間，格式同上 |
 | `host` | | 主持 |
 | `sharer` | | 分享 |
 | `summarizer` | | 總結 |
 | `pm` | | PM |
-| `location` | | 地點 |
+| `location` | | 地點（純文字，與「教室」分頁無關） |
 | `note` | | 備註 |
-| `color` | | 顏色名：`sky` / `emerald` / `violet` / `amber` / `rose` / `cyan`。省略時課程預設 `sky`、活動預設 `rose` |
+| `color` | | 顏色名：`sky` / `emerald` / `violet` / `amber` / `rose` / `cyan`。省略時預設 `sky` |
+
+> `kind` 不需要填（填了也會被忽略，一律存成 `course`）；教室由匯入畫面選，不要放在 JSON 裡。
 
 ### 範例
 
-每筆都用**相同欄位**（給 AI 當範本時，請維持一致的格式、不要省略或多加欄位），時間統一 `19:30`–`21:00`：
+以一份完整的六月課表為例。**每筆都用相同欄位**（給 AI 當範本時，請維持一致的格式、不要省略或多加欄位）；沒有的角色就留空字串 `""`：
 
 ```json
 [
-  { "title": "成功心態", "kind": "course", "dayOfWeek": 1, "startTime": "19:30", "endTime": "21:00", "host": "王大明", "sharer": "李小華", "summarizer": "陳美美", "pm": "張阿強", "location": "中壢教室" },
-  { "title": "產品介紹", "kind": "course", "dayOfWeek": 2, "startTime": "19:30", "endTime": "21:00", "host": "王大明", "sharer": "李小華", "summarizer": "陳美美", "pm": "張阿強", "location": "中壢教室" },
-  { "title": "銷售技巧", "kind": "course", "dayOfWeek": 3, "startTime": "19:30", "endTime": "21:00", "host": "王大明", "sharer": "李小華", "summarizer": "陳美美", "pm": "張阿強", "location": "中壢教室" },
-  { "title": "團隊經營", "kind": "course", "dayOfWeek": 4, "startTime": "19:30", "endTime": "21:00", "host": "王大明", "sharer": "李小華", "summarizer": "陳美美", "pm": "張阿強", "location": "中壢教室" },
-  { "title": "領導力培訓", "kind": "course", "dayOfWeek": 5, "startTime": "19:30", "endTime": "21:00", "host": "王大明", "sharer": "李小華", "summarizer": "陳美美", "pm": "張阿強", "location": "中壢教室" }
+  { "title": "銅章會議", "date": "2026-06-01", "startTime": "19:30", "endTime": "21:00", "host": "", "sharer": "", "summarizer": "", "pm": "", "location": "中壢教室" },
+  { "title": "超凡訓練", "date": "2026-06-04", "startTime": "19:30", "endTime": "21:00", "host": "偉霖", "sharer": "", "summarizer": "凱平哥", "pm": "尚融", "location": "中壢教室" },
+  { "title": "9%聯合培訓", "date": "2026-06-06", "startTime": "15:00", "endTime": "16:30", "host": "", "sharer": "", "summarizer": "", "pm": "", "location": "中壢教室" },
+  { "title": "玩創家", "date": "2026-06-08", "startTime": "19:30", "endTime": "21:00", "host": "運昇", "sharer": "浩廷", "summarizer": "寶哥老師", "pm": "凱平", "location": "中壢教室" },
+  { "title": "群星計畫", "date": "2026-06-11", "startTime": "19:30", "endTime": "21:00", "host": "凱平", "sharer": "", "summarizer": "運昇哥", "pm": "吾心", "location": "中壢教室" },
+  { "title": "e-Spring", "date": "2026-06-15", "startTime": "19:30", "endTime": "21:00", "host": "威麟", "sharer": "鴻德", "summarizer": "彥彰", "pm": "浩廷", "location": "中壢教室" },
+  { "title": "價值願景", "date": "2026-06-18", "startTime": "19:30", "endTime": "21:00", "host": "育銓", "sharer": "可仰", "summarizer": "立烽哥", "pm": "凱平", "location": "中壢教室" },
+  { "title": "613.624.513 聯合培訓", "date": "2026-06-20", "startTime": "19:30", "endTime": "21:00", "host": "", "sharer": "", "summarizer": "", "pm": "", "location": "中壢教室" },
+  { "title": "健康講座", "date": "2026-06-22", "startTime": "19:30", "endTime": "21:00", "host": "雅萍", "sharer": "子淳", "summarizer": "博明哥", "pm": "家銘", "location": "中壢教室" },
+  { "title": "超凡訓練課", "date": "2026-06-25", "startTime": "19:30", "endTime": "21:00", "host": "偉霖", "sharer": "吾心", "summarizer": "運昇哥", "pm": "威麟", "location": "中壢教室" },
+  { "title": "健康講座-穩癌2", "date": "2026-06-27", "startTime": "19:30", "endTime": "21:00", "host": "", "sharer": "", "summarizer": "", "pm": "", "location": "中壢教室" },
+  { "title": "群星計畫", "date": "2026-06-29", "startTime": "19:30", "endTime": "21:00", "host": "凱平", "sharer": "", "summarizer": "運昇哥", "pm": "建閔", "location": "中壢教室" }
 ]
 ```
 
 ### 注意事項
 
-- 一般一份每週課表（幾十筆）不會碰到任何上限。資料較多時前端會自動分批送出，因此沒有總筆數限制。
-- 解析預覽會逐列標出錯誤（缺名稱、星期無法判讀、時間格式錯誤等），有錯時「確認匯入」會被擋下。
+- 一般一份月課表（幾十筆）不會碰到任何上限。資料較多時前端會自動分批送出，因此沒有總筆數限制。
+- 解析預覽會逐列標出錯誤（缺名稱、日期格式錯誤、時間格式錯誤等），有錯時「確認匯入」會被擋下。
 - 需要 `calendar` 頁權限（管理員）才能匯入。
 
 ## 器材室管理

@@ -27,29 +27,16 @@ export const courseInputSchema = z.object({
 
 export type CourseInput = z.infer<typeof courseInputSchema>
 
-// ── 匯入課表（批次每週課程）──────────────────────────────
-// 星期寬鬆解析：接受數字 1–7，或中文「(星期/週/禮拜)一…六/日/天」
-const dayOfWeekLenient = z.preprocess((v) => {
-  if (typeof v === 'number') return v
-  if (typeof v === 'string') {
-    const s = v.trim()
-    if (/^\d+$/.test(s)) return Number(s)
-    const c = s.replace(/^(星期|週|禮拜)/, '')
-    const map: Record<string, number> = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 日: 7, 天: 7 }
-    return c in map ? map[c] : v
-  }
-  return v
-}, z.number().int().min(1, '星期需為 1–7').max(7, '星期需為 1–7'))
-
-// 單筆匯入課程：沿用課程規則，但 classroom 由外層帶入、color 可省略（依 kind 補預設）、不含重複範圍
-export const courseImportItemSchema = z.object({
-  kind: z.enum(['activity', 'course']).default('course'),
+// ── 匯入活動（批次依日期寫入 events）──────────────────────────────
+// 單筆匯入活動：依「日期」(date) 匯入；classroom 由外層帶入、kind 一律 course（後端硬寫，忽略來源 JSON）、
+// color 可省略（補預設 sky）。見 specs/0012。
+export const eventImportItemSchema = z.object({
   title: z.string().trim().min(1, '請輸入名稱'),
   host: z.string().trim().nullish(),
   sharer: z.string().trim().nullish(),
   summarizer: z.string().trim().nullish(),
   pm: z.string().trim().nullish(),
-  dayOfWeek: dayOfWeekLenient,
+  date: dateStr,
   startTime: time.or(z.literal('')).default(''),
   endTime: time.or(z.literal('')).default(''),
   location: z.string().trim().nullish(),
@@ -57,16 +44,19 @@ export const courseImportItemSchema = z.object({
   note: z.string().trim().nullish()
 })
 
-export type CourseImportItem = z.infer<typeof courseImportItemSchema>
+export type EventImportItem = z.infer<typeof eventImportItemSchema>
 
-// 整批匯入：選教室 + 模式 + 課程陣列。單次請求上限 45（D1 免費方案 50 query/次，前端會切塊；見 specs/0011）
-export const importCoursesSchema = z.object({
+// 整批匯入：選教室 + 模式 + 活動陣列。單次請求上限 45（D1 免費方案 50 query/次，前端會切塊；見 specs/0012）
+// 覆蓋模式只清除 [replaceFrom, replaceTo] 日期區間內、此教室的活動（前端帶入整批的 min/max 日期）。
+export const importEventsSchema = z.object({
   classroom: z.string().trim().min(1),
   mode: z.enum(['append', 'replace']).default('append'),
-  items: z.array(courseImportItemSchema).min(1, '沒有可匯入的資料').max(45, '單次請求最多 45 筆')
+  replaceFrom: dateStr.optional(),
+  replaceTo: dateStr.optional(),
+  items: z.array(eventImportItemSchema).min(1, '沒有可匯入的資料').max(45, '單次請求最多 45 筆')
 })
 
-export type ImportCoursesInput = z.infer<typeof importCoursesSchema>
+export type ImportEventsInput = z.infer<typeof importEventsSchema>
 
 // 新增 / 編輯單次活動時的輸入驗證
 export const eventInputSchema = z.object({
