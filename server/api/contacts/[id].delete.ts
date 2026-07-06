@@ -1,5 +1,5 @@
 import { and, eq } from 'drizzle-orm'
-import { contacts, followUpLogs } from '../../db/schema'
+import { contacts, followUpLogs, prospects } from '../../db/schema'
 
 // 刪除名單（需 crm 權限）：僅限自己的名單，連同其跟進紀錄一起刪
 export default defineEventHandler(async (event) => {
@@ -20,6 +20,8 @@ export default defineEventHandler(async (event) => {
   }
 
   await db.delete(followUpLogs).where(eq(followUpLogs.contactId, id))
+  // 一併移除此人在每日任務各區塊的關聯列
+  await db.delete(prospects).where(eq(prospects.contactId, id))
   await db.delete(contacts).where(eq(contacts.id, id))
 
   return { ok: true }

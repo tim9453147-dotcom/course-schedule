@@ -7,7 +7,16 @@ export interface Contact {
   broached: boolean
   // 已完成的進度階段 id 陣列（對應 ContactStage.id）
   completedStages: number[]
+  // 聯絡方式（開發名單）
   contact: string | null
+  // 個人名單表延伸欄位（總名單明細 modal 編輯，表格預設不顯示）
+  friendOf: string | null
+  devPartner: string | null
+  info: string | null
+  // 等級：SSR / SR / R
+  level: string | null
+  // 狀態（織網表）
+  status: string | null
   followUpFreq: string | null
   lastFollowUp: string | null
   nextFollowUp: string | null

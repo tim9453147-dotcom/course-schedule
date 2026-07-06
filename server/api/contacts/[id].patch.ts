@@ -25,6 +25,7 @@ export default defineEventHandler(async (event) => {
   }
   if ('followUpFreq' in data) patch.followUpFreq = data.followUpFreq || null
   if ('lastFollowUp' in data) patch.lastFollowUp = data.lastFollowUp || null
+  if ('level' in data) patch.level = data.level || null
 
   // 頻率或最後跟進日有變動 → 重算下次跟進日
   if ('followUpFreq' in data || 'lastFollowUp' in data) {

@@ -114,6 +114,11 @@ const followUpFreq = z.enum([
   '暫停'
 ])
 
+// 每日任務（個人名單表）四個區塊 & 開發名單等級允許值
+// （放在 contactInputSchema 之前，讓延伸欄位可引用；前端 app/utils 另有對應常數）
+export const PROSPECT_SECTIONS = ['develop', 'reserve', 'five', 'network'] as const
+export const PROSPECT_LEVELS = ['SSR', 'SR', 'R'] as const
+
 // 名單：新增 / 編輯（整筆）。nextFollowUp 由後端計算，不接受前端輸入。
 export const contactInputSchema = z.object({
   name: z.string().trim().min(1, '請輸入姓名'),
@@ -123,6 +128,12 @@ export const contactInputSchema = z.object({
   // 已完成的進度階段 id 陣列
   completedStages: z.array(z.number().int()).default([]),
   contact: z.string().trim().nullish(),
+  // 每日任務／個人名單表延伸欄位（總名單明細 modal 編輯）
+  friendOf: z.string().trim().nullish(),
+  devPartner: z.string().trim().nullish(),
+  info: z.string().trim().nullish(),
+  level: z.enum(PROSPECT_LEVELS).or(z.literal('')).nullish(),
+  status: z.string().trim().nullish(),
   followUpFreq: followUpFreq.or(z.literal('')).nullish(),
   lastFollowUp: date.or(z.literal('')).nullish(),
   note: z.string().trim().nullish()
@@ -167,3 +178,20 @@ export type FollowUpLogInput = z.infer<typeof followUpLogSchema>
 export const doneDateSchema = z.object({ date })
 
 export type DoneDateInput = z.infer<typeof doneDateSchema>
+
+// 每日任務（個人名單表）──────────────────────────────────
+// 每一列＝把某位總名單對象（contactId）放進某個區塊；姓名與延伸欄位皆來自該 contact。
+export const prospectInputSchema = z.object({
+  section: z.enum(PROSPECT_SECTIONS),
+  contactId: z.coerce.number().int(),
+  date: date.or(z.literal('')).nullish()
+})
+
+export type ProspectInput = z.infer<typeof prospectInputSchema>
+
+// 部分更新：只有這一列自己的 date 可改（section / contactId 不可改）
+export const prospectPatchSchema = z.object({
+  date: date.or(z.literal('')).nullish()
+})
+
+export type ProspectPatch = z.infer<typeof prospectPatchSchema>

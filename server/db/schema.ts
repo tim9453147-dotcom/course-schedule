@@ -146,6 +146,17 @@ export const contacts = sqliteTable('contacts', {
     .default([]),
   // 聯絡方式
   contact: text('contact'),
+  // 以下為「每日任務／個人名單表」用的延伸欄位；總名單表格預設不顯示，靠明細 modal 編輯。
+  // 誰的朋友（開發名單）
+  friendOf: text('friend_of'),
+  // 一起開發的夥伴姓名（開發名單）
+  devPartner: text('dev_partner'),
+  // 新人資訊，自由文字備註（開發名單）
+  info: text('info'),
+  // 等級：SSR / SR / R（開發名單）
+  level: text('level'),
+  // 狀態（織網表）
+  status: text('status'),
   // 跟進頻率：一週一次 / 兩週一次 / 一個月一次 / 一季一次 / 半年一次 / 暫停
   followUpFreq: text('follow_up_freq'),
   // 最後 / 下次跟進日（"YYYY-MM-DD"）；nextFollowUp 由 lastFollowUp + 頻率自動算出
@@ -189,6 +200,30 @@ export const followUpLogs = sqliteTable('follow_up_logs', {
     .$defaultFn(() => Math.floor(Date.now() / 1000))
 })
 
+// 每日任務（個人名單表）：四個區塊共用一張表，以 section 區分
+//   develop=開發名單 / reserve=預備名單 / five=五人名單 / network=織網表
+// 擁有者規則同 contacts：一般使用者為 users.id，超級管理員為 NULL，各自獨立。
+// 採「先建立空白列，再 inline 逐欄填寫」的表單式操作，故除 section 外欄位皆可留空。
+// 每日任務：把「總名單的某個人」放進某個區塊的關聯列。
+//   姓名與延伸欄位（誰的朋友、等級、狀態…）都來自所引用的 contact，這裡只存「這一列自己的」資料。
+//   同一個人在同一區塊不重複，但可同時出現在不同區塊。contact 被刪除時，其 prospects 一併刪除。
+export const prospects = sqliteTable('prospects', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  // 擁有者（同 contacts）：一般使用者為 users.id，超級管理員為 NULL。
+  userId: integer('user_id').references(() => users.id),
+  // 引用的總名單對象
+  contactId: integer('contact_id')
+    .notNull()
+    .references(() => contacts.id),
+  // 所屬區塊：develop / reserve / five / network
+  section: text('section').notNull(),
+  // 日期（"YYYY-MM-DD"）：加入此區塊的日期，屬於這一列自己
+  date: text('date'),
+  createdAt: integer('created_at')
+    .notNull()
+    .$defaultFn(() => Math.floor(Date.now() / 1000))
+})
+
 // 方便其他檔案引用的型別
 export type Course = typeof courses.$inferSelect
 export type NewCourse = typeof courses.$inferInsert
@@ -206,3 +241,5 @@ export type ContactStage = typeof contactStages.$inferSelect
 export type NewContactStage = typeof contactStages.$inferInsert
 export type FollowUpLog = typeof followUpLogs.$inferSelect
 export type NewFollowUpLog = typeof followUpLogs.$inferInsert
+export type Prospect = typeof prospects.$inferSelect
+export type NewProspect = typeof prospects.$inferInsert
