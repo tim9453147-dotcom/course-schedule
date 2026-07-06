@@ -1,6 +1,11 @@
 @import "tailwindcss";
 @import "@nuxt/ui";
 
+/* 讓所有可點擊的按鈕顯示手指游標（Tailwind preflight 預設是箭頭）；停用中的維持 not-allowed */
+button:not(:disabled):not([aria-disabled="true"]) {
+  cursor: pointer;
+}
+
 @theme static {
   --font-sans: 'Public Sans', sans-serif;
 

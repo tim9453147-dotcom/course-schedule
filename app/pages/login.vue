@@ -9,7 +9,7 @@ type Schema = z.output<typeof schema>
 
 const state = reactive({ username: '', password: '' })
 const loading = ref(false)
-const toast = useToast()
+const notify = useNotify()
 const { fetch: refreshSession } = useUserSession()
 
 async function onSubmit() {
@@ -17,11 +17,11 @@ async function onSubmit() {
   try {
     await $fetch('/api/auth/login', { method: 'POST', body: state })
     await refreshSession()
-    toast.add({ title: '登入成功', color: 'success' })
+    notify.success('登入成功')
     const redirect = useRoute().query.redirect
     await navigateTo(typeof redirect === 'string' ? redirect : '/')
   } catch {
-    toast.add({ title: '登入失敗', description: '帳號或密碼錯誤', color: 'error' })
+    notify.error('登入失敗', '帳號或密碼錯誤')
   } finally {
     loading.value = false
   }

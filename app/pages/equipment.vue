@@ -1,7 +1,8 @@
 <script setup lang="ts">
 // 是否能編輯器材室（需有 equipment 頁權限；超級管理員全通）
 const canEdit = useCanEdit('equipment')
-const toast = useToast()
+const notify = useNotify()
+const confirm = useConfirm()
 
 const { data: equipment, refresh: refreshEquip } = await useFetch<Equipment[]>('/api/equipment')
 const { data: rentals, refresh: refreshRentals } = await useFetch<Rental[]>('/api/rentals')
@@ -58,7 +59,7 @@ function openEditEquip(e: Equipment) {
 }
 async function saveEquip() {
   if (!equipForm.name.trim()) {
-    toast.add({ title: '請輸入器材名稱', color: 'error' })
+    notify.error('請輸入器材名稱')
     return
   }
   equipSaving.value = true
@@ -69,23 +70,23 @@ async function saveEquip() {
     } else {
       await $fetch(`/api/equipment/${equipEditingId.value}`, { method: 'PUT', body })
     }
-    toast.add({ title: '已儲存', color: 'success' })
+    notify.success('已儲存')
     equipOpen.value = false
     await refreshEquip()
   } catch {
-    toast.add({ title: '儲存失敗', color: 'error' })
+    notify.error('儲存失敗')
   } finally {
     equipSaving.value = false
   }
 }
 async function removeEquip(e: Equipment) {
-  if (!confirm(`確定刪除「${e.name}」？相關借還紀錄也會一併刪除。`)) return
+  if (!(await confirm({ title: '刪除器材', description: `確定刪除「${e.name}」？相關借還紀錄也會一併刪除。`, danger: true }))) return
   try {
     await $fetch(`/api/equipment/${e.id}`, { method: 'DELETE' })
-    toast.add({ title: '已刪除', color: 'success' })
+    notify.success('已刪除')
     await Promise.all([refreshEquip(), refreshRentals()])
   } catch {
-    toast.add({ title: '刪除失敗', color: 'error' })
+    notify.error('刪除失敗')
   }
 }
 
@@ -128,7 +129,7 @@ function openEditRental(r: Rental) {
 }
 async function saveRental() {
   if (!rentalForm.equipmentId) {
-    toast.add({ title: '請選擇器材', color: 'error' })
+    notify.error('請選擇器材')
     return
   }
   rentalSaving.value = true
@@ -138,12 +139,12 @@ async function saveRental() {
     } else {
       await $fetch(`/api/rentals/${rentalEditingId.value}`, { method: 'PUT', body: rentalForm })
     }
-    toast.add({ title: '已儲存', color: 'success' })
+    notify.success('已儲存')
     rentalOpen.value = false
     await refreshRentals()
   } catch (err: unknown) {
     const msg = (err as { statusMessage?: string })?.statusMessage ?? '請檢查欄位內容'
-    toast.add({ title: '儲存失敗', description: msg, color: 'error' })
+    notify.error('儲存失敗', msg)
   } finally {
     rentalSaving.value = false
   }
@@ -162,20 +163,20 @@ async function returnRental(r: Rental) {
         note: r.note ?? ''
       }
     })
-    toast.add({ title: '已歸還', color: 'success' })
+    notify.success('已歸還')
     await refreshRentals()
   } catch {
-    toast.add({ title: '歸還失敗', color: 'error' })
+    notify.error('歸還失敗')
   }
 }
 async function removeRental(r: Rental) {
-  if (!confirm('確定刪除這筆借還紀錄？')) return
+  if (!(await confirm({ title: '刪除紀錄', description: '確定刪除這筆借還紀錄？', danger: true }))) return
   try {
     await $fetch(`/api/rentals/${r.id}`, { method: 'DELETE' })
-    toast.add({ title: '已刪除', color: 'success' })
+    notify.success('已刪除')
     await refreshRentals()
   } catch {
-    toast.add({ title: '刪除失敗', color: 'error' })
+    notify.error('刪除失敗')
   }
 }
 </script>

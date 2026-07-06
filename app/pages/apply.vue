@@ -11,7 +11,7 @@ const schema = z.object({
 const state = reactive({ username: '', displayName: '', password: '', note: '' })
 const loading = ref(false)
 const submitted = ref(false)
-const toast = useToast()
+const notify = useNotify()
 
 async function onSubmit() {
   loading.value = true
@@ -20,7 +20,7 @@ async function onSubmit() {
     submitted.value = true
   } catch (e: unknown) {
     const msg = (e as { data?: { message?: string } })?.data?.message ?? '請稍後再試'
-    toast.add({ title: '申請失敗', description: msg, color: 'error' })
+    notify.error('申請失敗', msg)
   } finally {
     loading.value = false
   }

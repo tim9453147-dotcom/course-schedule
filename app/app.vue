@@ -1,6 +1,6 @@
 <script setup lang="ts">
 const { loggedIn, user, session, clear } = useUserSession();
-const toast = useToast();
+const notify = useNotify();
 const route = useRoute();
 
 const isSuper = computed(() => session.value?.isSuperAdmin === true);
@@ -27,7 +27,7 @@ useSeoMeta({
 
 async function logout() {
   await clear();
-  toast.add({ title: "已登出", color: "success" });
+  notify.success("已登出");
   await navigateTo("/");
 }
 
@@ -45,11 +45,11 @@ function openChangePassword() {
 
 async function changePassword() {
   if (pwForm.next.length < 6) {
-    toast.add({ title: "新密碼至少 6 碼", color: "error" });
+    notify.error("新密碼至少 6 碼");
     return;
   }
   if (pwForm.next !== pwForm.confirm) {
-    toast.add({ title: "兩次輸入的新密碼不一致", color: "error" });
+    notify.error("兩次輸入的新密碼不一致");
     return;
   }
   pwSaving.value = true;
@@ -59,11 +59,11 @@ async function changePassword() {
       body: { currentPassword: pwForm.current, newPassword: pwForm.next },
     });
     pwOpen.value = false;
-    toast.add({ title: "密碼已更新", color: "success" });
+    notify.success("密碼已更新");
   } catch (e: unknown) {
     const msg =
       (e as { data?: { message?: string } })?.data?.message ?? "請稍後再試";
-    toast.add({ title: "修改失敗", description: msg, color: "error" });
+    notify.error("修改失敗", msg);
   } finally {
     pwSaving.value = false;
   }
@@ -71,7 +71,7 @@ async function changePassword() {
 </script>
 
 <template>
-  <UApp>
+  <UApp :toaster="{ position: 'top-center', progress: false, duration: 3000 }">
     <UHeader>
       <template #left>
         <nav class="flex items-center gap-1">

@@ -8,7 +8,8 @@ import type { DateClickArg } from '@fullcalendar/interaction'
 
 // 是否能編輯課表（需有 calendar 頁權限；超級管理員全通）
 const canEdit = useCanEdit('calendar')
-const toast = useToast()
+const notify = useNotify()
+const confirm = useConfirm()
 const { loggedIn, session } = useUserSession()
 
 const { data: courses, refresh: refreshCourses } = await useFetch<Course[]>('/api/courses')
@@ -321,7 +322,7 @@ async function onEventDrop(info: EventDropArg) {
         body: { ...e, date: newDate, startTime: e.startTime ?? '', endTime: e.endTime ?? '' }
       })
       await refreshEvents()
-      toast.add({ title: `已移到 ${newDate}`, color: 'success' })
+      notify.success(`已移到 ${newDate}`)
     } else {
       const c = courses.value?.find(x => x.id === refId)
       if (!c) return
@@ -333,11 +334,11 @@ async function onEventDrop(info: EventDropArg) {
         body: { ...c, dayOfWeek: newDay }
       })
       await refreshCourses()
-      toast.add({ title: `已改到${dayName(newDay)}`, color: 'success' })
+      notify.success(`已改到${dayName(newDay)}`)
     }
   } catch {
     info.revert()
-    toast.add({ title: '移動失敗', color: 'error' })
+    notify.error('移動失敗')
   }
 }
 
@@ -350,11 +351,11 @@ function openCreate() {
 
 async function save() {
   if (!form.title.trim()) {
-    toast.add({ title: '請輸入名稱', color: 'error' })
+    notify.error('請輸入名稱')
     return
   }
   if (!form.date) {
-    toast.add({ title: '請選擇日期', color: 'error' })
+    notify.error('請選擇日期')
     return
   }
 
@@ -403,10 +404,10 @@ async function save() {
       }
     }
     await Promise.all([refreshCourses(), refreshEvents()])
-    toast.add({ title: '已儲存', color: 'success' })
+    notify.success('已儲存')
     open.value = false
   } catch {
-    toast.add({ title: '儲存失敗', description: '請檢查欄位內容', color: 'error' })
+    notify.error('儲存失敗', '請檢查欄位內容')
   } finally {
     saving.value = false
   }
@@ -478,11 +479,11 @@ async function applyCourseEdit(scope: 'this' | 'following' | 'all') {
       })
     }
     await Promise.all([refreshCourses(), refreshEvents()])
-    toast.add({ title: '已儲存', color: 'success' })
+    notify.success('已儲存')
     scopeOpen.value = false
     open.value = false
   } catch {
-    toast.add({ title: '儲存失敗', description: '請檢查欄位內容', color: 'error' })
+    notify.error('儲存失敗', '請檢查欄位內容')
   } finally {
     saving.value = false
   }
@@ -490,7 +491,7 @@ async function applyCourseEdit(scope: 'this' | 'following' | 'all') {
 
 async function remove() {
   if (mode.value !== 'edit' || editingId.value === null) return
-  if (!confirm(`確定刪除「${form.title}」？`)) return
+  if (!(await confirm({ title: '刪除', description: `確定刪除「${form.title}」？`, danger: true }))) return
   try {
     if (editingSource.value === 'course') {
       await $fetch(`/api/courses/${editingId.value}`, { method: 'DELETE' })
@@ -499,10 +500,10 @@ async function remove() {
       await $fetch(`/api/events/${editingId.value}`, { method: 'DELETE' })
       await refreshEvents()
     }
-    toast.add({ title: '已刪除', color: 'success' })
+    notify.success('已刪除')
     open.value = false
   } catch {
-    toast.add({ title: '刪除失敗', color: 'error' })
+    notify.error('刪除失敗')
   }
 }
 
@@ -620,9 +621,9 @@ watch(importText, () => {
 async function copyAiPrompt() {
   try {
     await navigator.clipboard.writeText(AI_PROMPT)
-    toast.add({ title: '已複製 AI 指令', color: 'success' })
+    notify.success('已複製 AI 指令')
   } catch {
-    toast.add({ title: '複製失敗，請手動選取', color: 'error' })
+    notify.error('複製失敗，請手動選取')
   }
 }
 
@@ -638,11 +639,11 @@ function openImport() {
 async function confirmImport() {
   const parsed = importParsed.value
   if (!parsed || !parsed.rows.length) {
-    toast.add({ title: '請先貼上資料並解析預覽', color: 'error' })
+    notify.error('請先貼上資料並解析預覽')
     return
   }
   if (parsed.errors.length) {
-    toast.add({ title: '資料有誤，請先修正', description: parsed.errors[0], color: 'error' })
+    notify.error('資料有誤，請先修正', parsed.errors[0])
     return
   }
   const CHUNK = 40 // D1 免費方案 50 query/次，留邊；超過就切多次請求
@@ -666,11 +667,11 @@ async function confirmImport() {
       if (rows.length > CHUNK) importProgress.value = `已匯入 ${done} / ${rows.length}…`
     }
     await refreshEvents()
-    toast.add({ title: `已匯入 ${done} 筆到 ${importClassroom.value}`, color: 'success' })
+    notify.success(`已匯入 ${done} 筆到 ${importClassroom.value}`)
     importOpen.value = false
   } catch {
     const desc = done > 0 ? `已成功寫入 ${done} 筆，後續中斷` : '請檢查資料內容'
-    toast.add({ title: '匯入失敗', description: desc, color: 'error' })
+    notify.error('匯入失敗', desc)
   } finally {
     importing.value = false
   }
@@ -718,10 +719,10 @@ async function onAiImage(e: Event) {
     })
     importText.value = text
     const n = importParsed.value?.rows.length ?? 0
-    toast.add({ title: `已辨識 ${n} 筆，請核對後再匯入`, color: 'success' })
+    notify.success(`已辨識 ${n} 筆，請核對後再匯入`)
   } catch (err) {
     const msg = (err as { statusMessage?: string })?.statusMessage || '圖片辨識失敗，請改用手動貼上 JSON'
-    toast.add({ title: '辨識失敗', description: msg, color: 'error' })
+    notify.error('辨識失敗', msg)
   } finally {
     aiLoading.value = false
     input.value = '' // 清掉以便重選同一張

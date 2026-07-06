@@ -2,7 +2,8 @@
 // 需登入才能看到此頁
 definePageMeta({ middleware: 'auth' })
 
-const toast = useToast()
+const notify = useNotify()
+const confirm = useConfirm()
 
 // deep: true → 名單清單為深層響應式，inline 樂觀更新（c.xxx=value、Object.assign）
 // 才會即時反映到畫面。Nuxt 4 的 useFetch 預設是 shallow，不加會「送了 API 但畫面不動」。
@@ -87,7 +88,7 @@ async function setBroached(c: Contact, value: boolean) {
     Object.assign(c, updated)
   } catch {
     c.broached = prev
-    toast.add({ title: '更新失敗', color: 'error' })
+    notify.error('更新失敗')
   }
 }
 
@@ -106,7 +107,7 @@ async function toggleStage(c: Contact, stageId: number) {
     Object.assign(c, updated)
   } catch {
     c.completedStages = prev
-    toast.add({ title: '更新失敗', color: 'error' })
+    notify.error('更新失敗')
   }
 }
 
@@ -127,7 +128,7 @@ async function toggleDone(c: Contact, value: boolean) {
     }
     await refreshContacts()
   } catch {
-    toast.add({ title: '更新失敗', color: 'error' })
+    notify.error('更新失敗')
     await refreshContacts()
   }
 }
@@ -140,7 +141,7 @@ async function changeFreq(c: Contact, value: string) {
     })
     Object.assign(c, updated) // 同步後端重算後的 nextFollowUp
   } catch {
-    toast.add({ title: '更新失敗', color: 'error' })
+    notify.error('更新失敗')
     await refreshContacts()
   }
 }
@@ -155,7 +156,7 @@ async function patchField(c: Contact, key: 'name' | 'location') {
     Object.assign(c, updated)
   } catch (err: unknown) {
     const msg = (err as { statusMessage?: string })?.statusMessage ?? '請檢查欄位內容'
-    toast.add({ title: '更新失敗', description: msg, color: 'error' })
+    notify.error('更新失敗', msg)
     await refreshContacts() // 還原成後端資料（例如姓名被清空遭拒）
   }
 }
@@ -174,7 +175,7 @@ async function addStage() {
     newStageLabel.value = ''
     await refreshStages()
   } catch {
-    toast.add({ title: '新增階段失敗', color: 'error' })
+    notify.error('新增階段失敗')
   } finally {
     stageSaving.value = false
   }
@@ -190,7 +191,7 @@ async function renameStage(s: ContactStage) {
   try {
     await $fetch(`/api/contact-stages/${s.id}`, { method: 'PATCH', body: { label: v } })
   } catch {
-    toast.add({ title: '改名失敗', color: 'error' })
+    notify.error('改名失敗')
     await refreshStages()
   }
 }
@@ -209,18 +210,18 @@ async function moveStage(index: number, dir: -1 | 1) {
     ])
     await refreshStages()
   } catch {
-    toast.add({ title: '排序失敗', color: 'error' })
+    notify.error('排序失敗')
     await refreshStages()
   }
 }
 
 async function deleteStage(s: ContactStage) {
-  if (!confirm(`確定刪除階段「${s.label}」？已標記此階段的名單會失去這個標記。`)) return
+  if (!(await confirm({ title: '刪除階段', description: `確定刪除階段「${s.label}」？已標記此階段的名單會失去這個標記。`, danger: true }))) return
   try {
     await $fetch(`/api/contact-stages/${s.id}`, { method: 'DELETE' })
     await Promise.all([refreshStages(), refreshContacts()])
   } catch {
-    toast.add({ title: '刪除失敗', color: 'error' })
+    notify.error('刪除失敗')
   }
 }
 
@@ -259,31 +260,31 @@ function openCreate() {
 
 async function save() {
   if (!form.name.trim()) {
-    toast.add({ title: '請輸入姓名', color: 'error' })
+    notify.error('請輸入姓名')
     return
   }
   saving.value = true
   try {
     await $fetch('/api/contacts', { method: 'POST', body: form })
-    toast.add({ title: '已新增', color: 'success' })
+    notify.success('已新增')
     formOpen.value = false
     await refreshContacts()
   } catch (err: unknown) {
     const msg = (err as { statusMessage?: string })?.statusMessage ?? '請檢查欄位內容'
-    toast.add({ title: '新增失敗', description: msg, color: 'error' })
+    notify.error('新增失敗', msg)
   } finally {
     saving.value = false
   }
 }
 
 async function remove(c: Contact) {
-  if (!confirm(`確定刪除「${c.name}」？相關跟進紀錄也會一併刪除。`)) return
+  if (!(await confirm({ title: '刪除名單', description: `確定刪除「${c.name}」？相關跟進紀錄也會一併刪除。`, danger: true }))) return
   try {
     await $fetch(`/api/contacts/${c.id}`, { method: 'DELETE' })
-    toast.add({ title: '已刪除', color: 'success' })
+    notify.success('已刪除')
     await refreshContacts()
   } catch {
-    toast.add({ title: '刪除失敗', color: 'error' })
+    notify.error('刪除失敗')
   }
 }
 
@@ -317,7 +318,7 @@ async function saveNote() {
     const row = (contacts.value ?? []).find(x => x.id === updated.id)
     if (row) Object.assign(row, updated)
   } catch {
-    toast.add({ title: '更新失敗', color: 'error' })
+    notify.error('更新失敗')
   }
 }
 
@@ -333,7 +334,7 @@ async function loadLogs(id: number) {
 async function addLog() {
   if (!detailContact.value) return
   if (!logForm.date) {
-    toast.add({ title: '請選擇日期', color: 'error' })
+    notify.error('請選擇日期')
     return
   }
   logSaving.value = true
@@ -342,7 +343,7 @@ async function addLog() {
       method: 'POST',
       body: { date: logForm.date, content: logForm.content }
     })
-    toast.add({ title: '已記錄跟進', color: 'success' })
+    notify.success('已記錄跟進')
     logForm.content = ''
     await Promise.all([loadLogs(detailContact.value.id), refreshContacts()])
     // 同步抽屜上方顯示的名單資料
@@ -350,14 +351,14 @@ async function addLog() {
     if (fresh) detailContact.value = fresh
   } catch (err: unknown) {
     const msg = (err as { statusMessage?: string })?.statusMessage ?? '請檢查欄位內容'
-    toast.add({ title: '記錄失敗', description: msg, color: 'error' })
+    notify.error('記錄失敗', msg)
   } finally {
     logSaving.value = false
   }
 }
 
 async function removeLog(log: FollowUpLog) {
-  if (!confirm('確定刪除這筆跟進紀錄？')) return
+  if (!(await confirm({ title: '刪除紀錄', description: '確定刪除這筆跟進紀錄？', danger: true }))) return
   try {
     await $fetch(`/api/contacts/${log.contactId}/logs/${log.id}`, { method: 'DELETE' })
     if (detailContact.value) {
@@ -366,7 +367,7 @@ async function removeLog(log: FollowUpLog) {
       if (fresh) detailContact.value = fresh
     }
   } catch {
-    toast.add({ title: '刪除失敗', color: 'error' })
+    notify.error('刪除失敗')
   }
 }
 </script>

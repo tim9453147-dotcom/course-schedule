@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## ⚠️ Run everything through `just` (read first)
 
-The repo ships a `justfile` whose recipes pin fnm's Node **v22** onto `PATH`, so `just dev` / `just deploy` / `just db-migrate-local` etc. always run under the right node — even from a clean/non-interactive shell. Run `just` with no args to list recipes; recipe names map to the package scripts (replace `:` with `-`, e.g. `just db-migrate-local` → `bun run db:migrate:local`). **Use `just`; don't worry about node version.**
+The repo ships a `justfile` whose recipes pin fnm's Node (currently **v24.17.0**, see `justfile:3`) onto `PATH`, so `just dev` / `just deploy` / `just db-migrate-local` etc. always run under the right node — even from a clean/non-interactive shell. Run `just` with no args to list recipes; recipe names map to the package scripts (replace `:` with `-`, e.g. `just db-migrate-local` → `bun run db:migrate:local`). **Use `just`; don't worry about node version.**
 
 Why it matters (only relevant if you bypass `just` and run `bun`/`bunx` directly): the machine's default `node` (`/usr/bin/node`) is **v18.19.1**, below Nuxt 4's required Node 20+, so `nuxt`/`wrangler`/`drizzle-kit` may crash with `SyntaxError: Unexpected identifier` on `import`. In that case put v22 on PATH yourself first (`fnm use 22`). Bun's package scripts shell out to node-shebang binaries that can resolve to the older `/usr/bin/node` otherwise.
 
@@ -25,6 +25,8 @@ bun run db:migrate:remote   # apply migrations to the REMOTE Cloudflare D1
 bun run db:seed:local       # load server/db/seed.sql into local D1
 bun run deploy              # build + deploy to Pages project course-schedule-2689336
 ```
+
+CI (`.github/workflows/ci.yml`) runs on every push — note it uses **pnpm** on Node 22 (not bun) and only runs `lint` + `typecheck`; there is no build/deploy in CI.
 
 There are no automated tests. Verification has been done with headless Chrome via Playwright driving a real browser against `bun dev` — e.g. `bunx playwright-core` pointed at `/usr/bin/google-chrome-stable`, logging in through `ctx.request.post('/api/auth/login')` then exercising the UI. Headless screenshots in dev need a long `--virtual-time-budget` (≈20s) on first load because Vite compiles deps on demand.
 

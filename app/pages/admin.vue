@@ -11,7 +11,8 @@ interface AdminUser {
   approvedAt: number | null
 }
 
-const toast = useToast()
+const notify = useNotify()
+const confirm = useConfirm()
 const { data: users, refresh } = await useFetch<AdminUser[]>('/api/users', {
   default: () => []
 })
@@ -30,10 +31,10 @@ async function patch(id: number, body: Record<string, unknown>, okMsg?: string) 
   try {
     await $fetch(`/api/users/${id}`, { method: 'PUT', body })
     await refresh()
-    if (okMsg) toast.add({ title: okMsg, color: 'success' })
+    if (okMsg) notify.success(okMsg)
   } catch (e: unknown) {
     const msg = (e as { data?: { message?: string } })?.data?.message ?? '請稍後再試'
-    toast.add({ title: '操作失敗', description: msg, color: 'error' })
+    notify.error('操作失敗', msg)
   }
 }
 
@@ -55,20 +56,20 @@ async function resetPassword(u: AdminUser) {
   const pw = window.prompt(`為「${u.displayName}」設定新密碼（至少 6 碼）`)
   if (pw == null) return
   if (pw.length < 6) {
-    toast.add({ title: '密碼至少 6 碼', color: 'error' })
+    notify.error('密碼至少 6 碼')
     return
   }
   await patch(u.id, { password: pw }, '已重設密碼')
 }
 
 async function removeUser(u: AdminUser) {
-  if (!window.confirm(`確定刪除帳號「${u.username}」？此動作無法復原。`)) return
+  if (!(await confirm({ title: '刪除帳號', description: `確定刪除帳號「${u.username}」？此動作無法復原。`, danger: true }))) return
   try {
     await $fetch(`/api/users/${u.id}`, { method: 'DELETE' })
     await refresh()
-    toast.add({ title: '已刪除', color: 'success' })
+    notify.success('已刪除')
   } catch {
-    toast.add({ title: '刪除失敗', color: 'error' })
+    notify.error('刪除失敗')
   }
 }
 </script>
