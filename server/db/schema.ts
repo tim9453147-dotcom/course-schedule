@@ -224,6 +224,16 @@ export const prospects = sqliteTable('prospects', {
     .$defaultFn(() => Math.floor(Date.now() / 1000))
 })
 
+// 全站設定（通用鍵值表，單列一鍵）。目前用於全站色系主題（key='theme'）。
+// 只有超級管理員能寫入；讀取公開（所有人套用同一主題）。
+export const settings = sqliteTable('settings', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),
+  updatedAt: integer('updated_at')
+    .notNull()
+    .$defaultFn(() => Math.floor(Date.now() / 1000))
+})
+
 // 方便其他檔案引用的型別
 export type Course = typeof courses.$inferSelect
 export type NewCourse = typeof courses.$inferInsert
@@ -243,3 +253,5 @@ export type FollowUpLog = typeof followUpLogs.$inferSelect
 export type NewFollowUpLog = typeof followUpLogs.$inferInsert
 export type Prospect = typeof prospects.$inferSelect
 export type NewProspect = typeof prospects.$inferInsert
+export type Setting = typeof settings.$inferSelect
+export type NewSetting = typeof settings.$inferInsert

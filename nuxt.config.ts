@@ -13,6 +13,16 @@ export default defineNuxtConfig({
 
   css: ['~/assets/css/main.css'],
 
+  // 深/淺色由全站色系主題（useTheme）控制。用 cookie 儲存偏好：SSR 讀得到，
+  // 已設定過的瀏覽器再次載入時伺服器就渲染正確深/淺色、不閃爍。
+  // 預設 dark（預設主題「石墨黑」為深色）；首次造訪淺色主題僅該次會短暫閃一下。
+  colorMode: {
+    preference: 'dark',
+    fallback: 'dark',
+    storage: 'cookie',
+    storageKey: 'cs-color-mode'
+  },
+
   // 部署到 Cloudflare Pages：build 後產生 dist/ (含 _worker.js)
   nitro: {
     preset: 'cloudflare-pages'
