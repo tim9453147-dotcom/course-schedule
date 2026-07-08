@@ -286,15 +286,6 @@ async function remove(c: Contact) {
   }
 }
 
-/* ---------- 跟進紀錄抽屜 ---------- */
-const detailOpen = ref(false)
-const detailContact = ref<Contact | null>(null)
-const logs = ref<FollowUpLog[]>([])
-const logsLoading = ref(false)
-const logForm = reactive({ date: '', content: '' })
-const logSaving = ref(false)
-const noteDraft = ref('')
-
 // 個人名單表明細編輯 modal（誰的朋友、開發夥伴、聯絡方式、新人資訊、等級、狀態）
 const metaOpen = ref(false)
 const metaContact = ref<Contact | null>(null)
@@ -305,81 +296,6 @@ function openMeta(c: Contact) {
 function onMetaSaved(updated: Contact) {
   const row = (contacts.value ?? []).find(x => x.id === updated.id)
   if (row) Object.assign(row, updated)
-  if (detailContact.value?.id === updated.id) Object.assign(detailContact.value, updated)
-}
-
-async function openDetail(c: Contact) {
-  detailContact.value = c
-  detailOpen.value = true
-  noteDraft.value = c.note ?? ''
-  Object.assign(logForm, { date: todayStr(), content: '' })
-  await loadLogs(c.id)
-}
-
-// 抽屜內編輯備註
-async function saveNote() {
-  if (!detailContact.value) return
-  if ((detailContact.value.note ?? '') === noteDraft.value) return
-  try {
-    const updated = await $fetch<Contact>(`/api/contacts/${detailContact.value.id}`, {
-      method: 'PATCH',
-      body: { note: noteDraft.value }
-    })
-    Object.assign(detailContact.value, updated)
-    const row = (contacts.value ?? []).find(x => x.id === updated.id)
-    if (row) Object.assign(row, updated)
-  } catch {
-    notify.error('更新失敗')
-  }
-}
-
-async function loadLogs(id: number) {
-  logsLoading.value = true
-  try {
-    logs.value = await $fetch<FollowUpLog[]>(`/api/contacts/${id}/logs`)
-  } finally {
-    logsLoading.value = false
-  }
-}
-
-async function addLog() {
-  if (!detailContact.value) return
-  if (!logForm.date) {
-    notify.error('請選擇日期')
-    return
-  }
-  logSaving.value = true
-  try {
-    await $fetch(`/api/contacts/${detailContact.value.id}/logs`, {
-      method: 'POST',
-      body: { date: logForm.date, content: logForm.content }
-    })
-    notify.success('已記錄跟進')
-    logForm.content = ''
-    await Promise.all([loadLogs(detailContact.value.id), refreshContacts()])
-    // 同步抽屜上方顯示的名單資料
-    const fresh = (contacts.value ?? []).find(x => x.id === detailContact.value?.id)
-    if (fresh) detailContact.value = fresh
-  } catch (err: unknown) {
-    const msg = (err as { statusMessage?: string })?.statusMessage ?? '請檢查欄位內容'
-    notify.error('記錄失敗', msg)
-  } finally {
-    logSaving.value = false
-  }
-}
-
-async function removeLog(log: FollowUpLog) {
-  if (!(await confirm({ title: '刪除紀錄', description: '確定刪除這筆跟進紀錄？', danger: true }))) return
-  try {
-    await $fetch(`/api/contacts/${log.contactId}/logs/${log.id}`, { method: 'DELETE' })
-    if (detailContact.value) {
-      await Promise.all([loadLogs(detailContact.value.id), refreshContacts()])
-      const fresh = (contacts.value ?? []).find(x => x.id === detailContact.value?.id)
-      if (fresh) detailContact.value = fresh
-    }
-  } catch {
-    notify.error('刪除失敗')
-  }
 }
 </script>
 
@@ -553,7 +469,7 @@ async function removeLog(log: FollowUpLog) {
                 :model-value="c.name"
                 variant="ghost"
                 size="sm"
-                class="w-32 font-medium"
+                class="w-20 font-medium"
                 @update:model-value="c.name = ($event as string)"
                 @change="patchField(c, 'name')"
               />
@@ -564,7 +480,7 @@ async function removeLog(log: FollowUpLog) {
                 variant="ghost"
                 size="sm"
                 placeholder="—"
-                class="w-28"
+                class="w-20"
                 @update:model-value="c.location = ($event as string)"
                 @change="patchField(c, 'location')"
               />
@@ -656,14 +572,6 @@ async function removeLog(log: FollowUpLog) {
                   size="sm"
                   title="編輯明細（每日任務欄位）"
                   @click="openMeta(c)"
-                />
-                <UButton
-                  icon="i-lucide-history"
-                  color="neutral"
-                  variant="ghost"
-                  size="sm"
-                  title="跟進紀錄／備註"
-                  @click="openDetail(c)"
                 />
                 <UButton
                   icon="i-lucide-trash-2"
@@ -870,126 +778,6 @@ async function removeLog(log: FollowUpLog) {
         </div>
       </template>
     </UModal>
-
-    <!-- 跟進紀錄抽屜 -->
-    <USlideover
-      v-model:open="detailOpen"
-      :title="`跟進紀錄 — ${detailContact?.name ?? ''}`"
-    >
-      <template #body>
-        <div
-          v-if="detailContact"
-          class="space-y-5"
-        >
-          <!-- 名單摘要 -->
-          <div class="text-sm space-y-1">
-            <div>
-              <span class="text-muted">跟進頻率：</span>{{ detailContact.followUpFreq || '未設定' }}
-            </div>
-            <div>
-              <span class="text-muted">上次跟進：</span>{{ timeAgo(detailContact.lastFollowUp) }}
-            </div>
-            <div>
-              <span class="text-muted">下次跟進：</span>
-              <span :class="isOverdue(detailContact.nextFollowUp) ? 'text-error font-medium' : ''">
-                {{ detailContact.nextFollowUp || '—' }}
-                <template v-if="isOverdue(detailContact.nextFollowUp)">（已逾期）</template>
-              </span>
-            </div>
-          </div>
-
-          <!-- 備註（可編輯） -->
-          <UFormField label="備註">
-            <UTextarea
-              v-model="noteDraft"
-              class="w-full"
-              :rows="2"
-              placeholder="關於這位客戶的備註…"
-              @change="saveNote"
-            />
-          </UFormField>
-
-          <!-- 新增跟進 -->
-          <div class="border border-default rounded-lg p-3 space-y-3">
-            <div class="font-medium text-sm">
-              記錄一次跟進
-            </div>
-            <div class="flex gap-2">
-              <UInput
-                v-model="logForm.date"
-                type="date"
-                class="w-40"
-              />
-            </div>
-            <UTextarea
-              v-model="logForm.content"
-              class="w-full"
-              :rows="2"
-              placeholder="這次聊了什麼？（可留空）"
-            />
-            <div class="flex justify-end">
-              <UButton
-                size="sm"
-                icon="i-lucide-plus"
-                :loading="logSaving"
-                @click="addLog"
-              >
-                新增紀錄
-              </UButton>
-            </div>
-          </div>
-
-          <!-- 時間軸 -->
-          <div>
-            <div class="font-medium text-sm mb-2">
-              歷史紀錄
-            </div>
-            <div
-              v-if="logsLoading"
-              class="text-muted text-sm py-4 text-center"
-            >
-              載入中…
-            </div>
-            <div
-              v-else-if="!logs.length"
-              class="text-muted text-sm py-4 text-center"
-            >
-              還沒有跟進紀錄。
-            </div>
-            <ul
-              v-else
-              class="space-y-2"
-            >
-              <li
-                v-for="log in logs"
-                :key="log.id"
-                class="flex items-start gap-3 border-l-2 border-primary/40 pl-3 py-1 group"
-              >
-                <div class="flex-1 min-w-0">
-                  <div class="text-sm font-medium tabular-nums">
-                    {{ log.date }}
-                  </div>
-                  <div
-                    v-if="log.content"
-                    class="text-sm text-muted whitespace-pre-wrap break-words"
-                  >
-                    {{ log.content }}
-                  </div>
-                </div>
-                <UButton
-                  icon="i-lucide-trash-2"
-                  color="error"
-                  variant="ghost"
-                  size="xs"
-                  class="opacity-0 group-hover:opacity-100"
-                  @click="removeLog(log)"
-                />
-              </li>
-            </ul>
-          </div>
-        </div>
-      </template>
-    </USlideover>
 
     <!-- 個人名單表明細編輯（每日任務用欄位） -->
     <ContactDetailModal

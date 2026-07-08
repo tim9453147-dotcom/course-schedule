@@ -733,12 +733,18 @@ async function onAiImage(e: Event) {
 <template>
   <!-- 手機版縮小左右 padding 讓課表接近滿版、日期欄位更寬；桌機維持原本留白 -->
   <UContainer class="py-8 px-1.5 sm:px-6 lg:px-8">
-    <div class="flex items-center justify-between gap-4 mb-4">
+    <!-- 只有一間教室（例如僅中壢）時，分頁沒有切換意義，直接隱藏；兩顆編輯鈕仍靠右 -->
+    <div
+      v-if="tabItems.length > 1 || canEdit"
+      class="flex items-center justify-between gap-4 mb-4"
+    >
       <UTabs
+        v-if="tabItems.length > 1"
         v-model="classroom"
         :items="tabItems"
         class="flex-1"
       />
+      <div v-else class="flex-1" />
       <div v-if="canEdit" class="flex shrink-0 gap-2">
         <UButton
           icon="i-lucide-upload"
@@ -1061,11 +1067,24 @@ async function onAiImage(e: Event) {
   font-weight: 600;
 }
 
-/* 事件：字略小、行高緊湊、可換行 */
+/* 事件：字略小、行高緊湊、可換行；加上平滑過渡供 hover 使用 */
 .schedule-calendar :deep(.fc-daygrid-event) {
   font-size: 0.75rem;
   line-height: 1.3;
   white-space: normal;
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease,
+    filter 0.12s ease;
+}
+
+/* 滑鼠移到事件上：浮起 + 輕微放大 + 陰影 + 提亮（transform/filter 不影響版面、跨主題色皆適用） */
+.schedule-calendar :deep(.fc-daygrid-event:hover) {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.3);
+  filter: brightness(1.08);
+  position: relative;
+  z-index: 5;
 }
 
 /* 登入後：日期格子與事件顯示可點游標 */

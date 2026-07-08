@@ -40,8 +40,8 @@ useHead({
 });
 
 useSeoMeta({
-  title: "教室課表",
-  description: "教室課表",
+  title: "中壢教室",
+  description: "中壢教室",
 });
 
 async function logout() {
