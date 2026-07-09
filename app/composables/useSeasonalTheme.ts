@@ -9,19 +9,33 @@ export function useSeasonalTheme() {
   // SSR 用當下時間初始化，payload 帶到 client（不重取）→ 首屏一致不閃。
   const now = useState<number>('cs-now', () => Date.now())
 
-  // 網址 query 強制指定（僅供截圖驗證，非使用者 UI）：?season=autumn&daypart=dusk
-  const forced = computed(() => ({
+  // 手動覆寫（超級管理員預覽用；null = 依時間自動）。
+  // 初始值沿用網址 ?season=&daypart= 當作驗證後門，行為與 spec 0018 相同。
+  const override = useState<{ season: Season | null, daypart: Daypart | null }>('cs-theme-override', () => ({
     season: isSeason(route.query.season) ? (route.query.season as Season) : null,
     daypart: isDaypart(route.query.daypart) ? (route.query.daypart as Daypart) : null
   }))
 
-  const theme = computed<ResolvedTheme>(() => {
-    const auto = nowParts(new Date(now.value))
-    return resolveTheme({
-      season: forced.value.season ?? auto.season,
-      daypart: forced.value.daypart ?? auto.daypart
+  // 依當前時間自動判定（未覆寫時採用，也供面板顯示「目前自動為」）
+  const auto = computed(() => nowParts(new Date(now.value)))
+
+  const theme = computed<ResolvedTheme>(() =>
+    resolveTheme({
+      season: override.value.season ?? auto.value.season,
+      daypart: override.value.daypart ?? auto.value.daypart
     })
-  })
+  )
+
+  // 覆寫設定（僅超級管理員面板呼叫）；plugin 的 watch(theme) 會自動重繪。
+  function setSeason(season: Season): void {
+    override.value = { ...override.value, season }
+  }
+  function setDaypart(daypart: Daypart): void {
+    override.value = { ...override.value, daypart }
+  }
+  function resetAuto(): void {
+    override.value = { season: null, daypart: null }
+  }
 
   // 套用 primary/neutral（改 appConfig，SSR 就生效、accent 不閃）
   function applyColors(): void {
@@ -39,5 +53,5 @@ export function useSeasonalTheme() {
     applyMode()
   }
 
-  return { theme, now, apply, applyMode }
+  return { theme, auto, override, now, apply, applyMode, setSeason, setDaypart, resetAuto }
 }

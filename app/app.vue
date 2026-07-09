@@ -107,6 +107,7 @@ async function changePassword() {
       </template>
 
       <template #right>
+        <SeasonThemePanel v-if="isSuper" />
         <template v-if="loggedIn">
           <UButton
             v-if="!isSuper"
