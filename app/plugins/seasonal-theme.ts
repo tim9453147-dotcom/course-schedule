@@ -36,8 +36,10 @@ export default defineNuxtPlugin((nuxtApp) => {
 
     // 只在「解析後的主題實際改變」時才過渡套用（避免每 60 秒 tick 觸發無謂動畫）。
     // 用字串鍵：Vue 以值（Object.is）比較，內容不變就不觸發；用陣列會因每次都是新參考而誤觸發。
+    // 鍵用 season|daypart（完整涵蓋所有視覺變化）：同季內 dawn↔day、dusk↔night 只有背景漸層變、
+    // primary/neutral/mode 不變，若只看後三者會漏掉這種切換而不過渡。
     watch(
-      () => `${theme.value.primary}|${theme.value.neutral}|${theme.value.mode}`,
+      () => `${theme.value.season}|${theme.value.daypart}`,
       () => applyWithTransition()
     )
 
