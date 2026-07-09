@@ -10,6 +10,21 @@ button:not(:disabled):not([aria-disabled="true"]) {
   --font-sans: 'Public Sans', sans-serif;
 }
 
+/* ── 主題切換平滑過渡（spec 0020）──
+   View Transitions 整頁交叉淡入淡出（背景漸層 + 色盤 + 深淺一起過渡）。約 0.5s。 */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.5s;
+}
+/* 尊重「減少動態」：與 plugin 的 JS 判斷雙保險 */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none !important;
+  }
+}
+
 /* ── 季節 × 時段 整頁背景漸層（氛圍層，spec 0018）──
    漸層鋪在 <html>、固定不隨捲動；<body> 透明讓漸層透出，Nuxt UI 卡片維持自身不透明背景。
    深/淺色文字對比由 color-mode 的 .dark 機制處理，與此漸層的明暗一致（清晨/白天=淺、黃昏/夜晚=深）。 */
