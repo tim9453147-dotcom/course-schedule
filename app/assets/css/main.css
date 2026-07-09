@@ -9,3 +9,41 @@ button:not(:disabled):not([aria-disabled="true"]) {
 @theme static {
   --font-sans: 'Public Sans', sans-serif;
 }
+
+/* ── 季節 × 時段 整頁背景漸層（氛圍層，spec 0018）──
+   漸層鋪在 <html>、固定不隨捲動；<body> 透明讓漸層透出，Nuxt UI 卡片維持自身不透明背景。
+   深/淺色文字對比由 color-mode 的 .dark 機制處理，與此漸層的明暗一致（清晨/白天=淺、黃昏/夜晚=深）。 */
+:root {
+  --app-bg: linear-gradient(160deg, #0f172a, #020617); /* fallback（冬夜） */
+}
+html {
+  background: var(--app-bg) fixed;
+  min-height: 100%;
+}
+body {
+  background-color: transparent;
+}
+
+/* 春 spring：櫻粉 / 嫩綠 */
+:root[data-season="spring"][data-daypart="dawn"] { --app-bg: linear-gradient(160deg, #fdf2f8, #ecfccb); }
+:root[data-season="spring"][data-daypart="day"] { --app-bg: linear-gradient(160deg, #fce7f3, #f0fdf4); }
+:root[data-season="spring"][data-daypart="dusk"] { --app-bg: linear-gradient(160deg, #831843, #4c1d3d 55%, #1e1b4b); }
+:root[data-season="spring"][data-daypart="night"] { --app-bg: linear-gradient(160deg, #2e1065, #0f172a); }
+
+/* 夏 summer：晴藍 / 青碧 */
+:root[data-season="summer"][data-daypart="dawn"] { --app-bg: linear-gradient(160deg, #e0f2fe, #fef9c3); }
+:root[data-season="summer"][data-daypart="day"] { --app-bg: linear-gradient(160deg, #dbeafe, #ecfeff); }
+:root[data-season="summer"][data-daypart="dusk"] { --app-bg: linear-gradient(160deg, #0c4a6e, #7c2d12 60%, #1e1b4b); }
+:root[data-season="summer"][data-daypart="night"] { --app-bg: linear-gradient(160deg, #082f49, #020617); }
+
+/* 秋 autumn：琥珀 / 楓橘 */
+:root[data-season="autumn"][data-daypart="dawn"] { --app-bg: linear-gradient(160deg, #fff7ed, #fef3c7); }
+:root[data-season="autumn"][data-daypart="day"] { --app-bg: linear-gradient(160deg, #ffedd5, #fefce8); }
+:root[data-season="autumn"][data-daypart="dusk"] { --app-bg: linear-gradient(160deg, #b45309, #7c2d12 55%, #1e1b4b); }
+:root[data-season="autumn"][data-daypart="night"] { --app-bg: linear-gradient(160deg, #292524, #0c0a09); }
+
+/* 冬 winter：靛藍 / 雪白 */
+:root[data-season="winter"][data-daypart="dawn"] { --app-bg: linear-gradient(160deg, #eef2ff, #f8fafc); }
+:root[data-season="winter"][data-daypart="day"] { --app-bg: linear-gradient(160deg, #e0e7ff, #f1f5f9); }
+:root[data-season="winter"][data-daypart="dusk"] { --app-bg: linear-gradient(160deg, #312e81, #1e293b); }
+:root[data-season="winter"][data-daypart="night"] { --app-bg: linear-gradient(160deg, #1e1b4b, #020617); }

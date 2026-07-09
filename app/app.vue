@@ -5,25 +5,6 @@ const route = useRoute();
 
 const isSuper = computed(() => session.value?.isSuperAdmin === true);
 
-// 全站色系主題下拉（僅超級管理員可見）：選單項目，目前選中者顯示打勾。
-// 選取即存回伺服器，之後所有使用者共用。
-const { theme, themes, setTheme } = useTheme();
-async function pickTheme(id: ThemeId) {
-  try {
-    await setTheme(id);
-    notify.success("已更新全站主題");
-  } catch {
-    notify.error("更新失敗", "請稍後再試");
-  }
-}
-const themeItems = computed(() =>
-  themes.map((t) => ({
-    label: t.label,
-    icon: t.id === theme.value ? "i-lucide-check" : undefined,
-    onSelect: () => pickTheme(t.id),
-  })),
-);
-
 // 導覽列顯示哪些頁面：public 永遠顯示；private 需超級管理員或被授權
 const visiblePages = computed(() =>
   PAGES.filter((p) => {
@@ -33,10 +14,17 @@ const visiblePages = computed(() =>
   }),
 );
 
+// 季節/時段掛到 <html> 屬性，供 main.css 選背景漸層（SSR 就寫入）
+const { theme: seasonalTheme } = useSeasonalTheme();
+
 useHead({
   meta: [{ name: "viewport", content: "width=device-width, initial-scale=1" }],
   link: [{ rel: "icon", href: "/favicon.ico" }],
-  htmlAttrs: { lang: "zh-Hant" },
+  htmlAttrs: {
+    lang: "zh-Hant",
+    "data-season": computed(() => seasonalTheme.value.season),
+    "data-daypart": computed(() => seasonalTheme.value.daypart),
+  },
 });
 
 useSeoMeta({
@@ -119,21 +107,6 @@ async function changePassword() {
       </template>
 
       <template #right>
-        <!-- 全站色系主題：僅超級管理員可設定，設定後所有使用者共用 -->
-        <UDropdownMenu
-          v-if="isSuper"
-          :items="themeItems"
-          :content="{ align: 'end' }"
-        >
-          <UButton
-            icon="i-lucide-palette"
-            color="neutral"
-            variant="ghost"
-            aria-label="設定全站色系主題"
-          >
-            <span class="hidden sm:inline">主題</span>
-          </UButton>
-        </UDropdownMenu>
         <template v-if="loggedIn">
           <UButton
             v-if="!isSuper"
