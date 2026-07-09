@@ -224,8 +224,7 @@ export const prospects = sqliteTable('prospects', {
     .$defaultFn(() => Math.floor(Date.now() / 1000))
 })
 
-// 全站設定（通用鍵值表，單列一鍵）。目前用於全站色系主題（key='theme'）。
-// 只有超級管理員能寫入；讀取公開（所有人套用同一主題）。
+// 全站設定（通用鍵值表，單列一鍵）。目前未使用，保留供日後全站設定重用。
 export const settings = sqliteTable('settings', {
   key: text('key').primaryKey(),
   value: text('value').notNull(),
