@@ -29,8 +29,8 @@ useHead({
 });
 
 useSeoMeta({
-  title: "中壢教室",
-  description: "中壢教室",
+  title: "我們獨自升級",
+  description: "我們獨自升級",
 });
 
 async function logout() {

@@ -19,13 +19,57 @@ function recipeById(id: number | null) {
   return id == null ? null : (recipes.value ?? []).find(r => r.id === id) ?? null
 }
 
+// 活動名稱建議：預設「家聚」＋既有活動用過的名稱＋本次新增的名稱；可自由輸入／新增選項。
+const createdNames = ref<string[]>([])
+const nameItems = computed(() => Array.from(new Set([
+  '家聚',
+  ...(gatherings.value ?? []).map(g => g.name),
+  ...createdNames.value
+])))
+
+// 活動名稱下拉是否展開（受控，才能在 Create 後手動收合）。
+const nameMenuOpen = ref(false)
+
+// 點下拉的 Create「xxx」：先把名稱加進選項清單再選取它，
+// 這樣名稱會填入框內、之後也會出現在右側下拉的選項中；最後主動收合選單。
+function onCreateName(v: string) {
+  const name = v.trim()
+  if (!name) return
+  if (!createdNames.value.includes(name)) createdNames.value.push(name)
+  form.name = name
+  // 元件在此輪事件內可能又把 open 設回 true，故延到下一個 tick 才強制關閉。
+  nextTick(() => (nameMenuOpen.value = false))
+}
+
+// 活動名稱欄位：聚焦時把預設文字（如「家聚」）整段選取，打字直接取代，
+// 避免黏字成「家聚xxx」；要新增名稱仍是打字後點下拉的 Create「xxx」。
+function selectAllOnFocus(e: FocusEvent) {
+  const t = e.target
+  if (t instanceof HTMLInputElement) {
+    requestAnimationFrame(() => t.select())
+  }
+}
+
+// 讓日期／時間欄位「點整格」就展開原生選擇器（不用只點右側 icon）。
+function openPicker(e: MouseEvent) {
+  const root = e.currentTarget as HTMLElement | null
+  if (!root) return
+  const input = (root instanceof HTMLInputElement ? root : root.querySelector('input')) as HTMLInputElement | null
+  if (input && !input.disabled) {
+    try {
+      input.showPicker()
+    } catch { /* 不支援 showPicker 的瀏覽器：略過，仍可用原生 icon */ }
+  }
+}
+
 /* ---------- 明細 modal ---------- */
 const open = ref(false)
 const editingId = ref<number | null>(null)
 const saving = ref(false)
 const showRecipe = ref(false) // 明細內是否展開食譜食材/作法
+// 新增時的預設：活動名稱「家聚」、地點「吾心家」、時段 19:00–21:00（編輯既有活動時由 openRow 覆寫）
 const blank = () => ({
-  name: '', date: '', startTime: '', endTime: '', location: '', mapUrl: '',
+  name: '家聚', date: '', startTime: '19:00', endTime: '21:00', location: '吾心家', mapUrl: '',
   cook: '', assistant: '', shopper: '', process: '', attendees: '',
   recipeId: null as number | null, note: ''
 })
@@ -133,11 +177,22 @@ async function remove() {
         <div class="space-y-4">
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <UFormField label="活動名稱">
-              <UInput
-                v-model="form.name"
-                :disabled="!canEdit"
+              <!-- focusin 冒泡自內層 input：聚焦時整段選取預設值，打字即取代，避免黏字 -->
+              <div
                 class="w-full"
-              />
+                @focusin="selectAllOnFocus"
+              >
+                <UInputMenu
+                  v-model="form.name"
+                  v-model:open="nameMenuOpen"
+                  :items="nameItems"
+                  create-item
+                  :disabled="!canEdit"
+                  placeholder="選擇或輸入"
+                  class="w-full"
+                  @create="onCreateName"
+                />
+              </div>
             </UFormField>
             <UFormField label="日期">
               <UInput
@@ -145,6 +200,7 @@ async function remove() {
                 type="date"
                 :disabled="!canEdit"
                 class="w-full"
+                @click="openPicker"
               />
             </UFormField>
           </div>
@@ -156,6 +212,7 @@ async function remove() {
                 type="time"
                 :disabled="!canEdit"
                 class="w-full"
+                @click="openPicker"
               />
             </UFormField>
             <UFormField label="結束時間">
@@ -164,6 +221,7 @@ async function remove() {
                 type="time"
                 :disabled="!canEdit"
                 class="w-full"
+                @click="openPicker"
               />
             </UFormField>
           </div>
