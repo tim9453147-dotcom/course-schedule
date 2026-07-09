@@ -8,6 +8,7 @@ const isSuper = computed(() => session.value?.isSuperAdmin === true);
 // 導覽列顯示哪些頁面：public 永遠顯示；private 需超級管理員或被授權
 const visiblePages = computed(() =>
   PAGES.filter((p) => {
+    if (p.nav === false) return false;
     if (p.access === "public") return true;
     if (isSuper.value) return true;
     return loggedIn.value && (session.value?.pages ?? []).includes(p.key);

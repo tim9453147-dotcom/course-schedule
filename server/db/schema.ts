@@ -224,6 +224,70 @@ export const prospects = sqliteTable('prospects', {
     .$defaultFn(() => Math.floor(Date.now() / 1000))
 })
 
+// 家聚點 — 活動核心＋紀錄（spec 0021）。共用（無 userId）、不分教室。
+// 一場家聚一筆；收支與活動紀錄兩個分頁都指向同一筆，只是顯示不同欄位。
+export const gatherings = sqliteTable('gatherings', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  // 活動名稱，例「海南雞飯」
+  name: text('name').notNull(),
+  // 日期 "YYYY-MM-DD"
+  date: text('date').notNull(),
+  // 開始 / 結束時間 "HH:MM"，可空
+  startTime: text('start_time'),
+  endTime: text('end_time'),
+  // 地點，例「吾心家」
+  location: text('location'),
+  // 地圖連結
+  mapUrl: text('map_url'),
+  // 角色（存人名）：操鍋 / 助手 / 採買
+  cook: text('cook'),
+  assistant: text('assistant'),
+  shopper: text('shopper'),
+  // 流程（多行純文字）
+  process: text('process'),
+  // 參加名單（多行純文字）
+  attendees: text('attendees'),
+  // 引用的食譜（可空）
+  recipeId: integer('recipe_id').references(() => recipes.id),
+  note: text('note'),
+  createdAt: integer('created_at')
+    .notNull()
+    .$defaultFn(() => Math.floor(Date.now() / 1000))
+})
+
+// 家聚點 — 收支（與 gathering 一對一；獨立成表以乾淨隔離 private 權限）。
+// 收入＝人數×收費、盈餘＝收入−支出，皆不存，讀取時計算。
+export const gatheringFinances = sqliteTable('gathering_finances', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  gatheringId: integer('gathering_id')
+    .notNull()
+    .unique()
+    .references(() => gatherings.id),
+  // 人數 / 收費（每人）/ 支出，皆可空
+  headcount: integer('headcount'),
+  fee: integer('fee'),
+  expense: integer('expense'),
+  createdAt: integer('created_at')
+    .notNull()
+    .$defaultFn(() => Math.floor(Date.now() / 1000))
+})
+
+// 家聚點 — 食譜（獨立清單）。活動可選填引用一道。
+export const recipes = sqliteTable('recipes', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  // 料理名稱
+  name: text('name').notNull(),
+  // 食材
+  ingredients: text('ingredients'),
+  // 作法
+  steps: text('steps'),
+  // 備註
+  note: text('note'),
+  createdAt: integer('created_at')
+    .notNull()
+    .$defaultFn(() => Math.floor(Date.now() / 1000))
+})
+
 // 全站設定（通用鍵值表，單列一鍵）。目前未使用，保留供日後全站設定重用。
 export const settings = sqliteTable('settings', {
   key: text('key').primaryKey(),
@@ -254,3 +318,9 @@ export type Prospect = typeof prospects.$inferSelect
 export type NewProspect = typeof prospects.$inferInsert
 export type Setting = typeof settings.$inferSelect
 export type NewSetting = typeof settings.$inferInsert
+export type Gathering = typeof gatherings.$inferSelect
+export type NewGathering = typeof gatherings.$inferInsert
+export type GatheringFinance = typeof gatheringFinances.$inferSelect
+export type NewGatheringFinance = typeof gatheringFinances.$inferInsert
+export type Recipe = typeof recipes.$inferSelect
+export type NewRecipe = typeof recipes.$inferInsert

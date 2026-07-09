@@ -195,3 +195,52 @@ export const prospectPatchSchema = z.object({
 })
 
 export type ProspectPatch = z.infer<typeof prospectPatchSchema>
+
+// 家聚點（spec 0021）──────────────────────────────────────────
+// 把空字串／null／undefined 都轉成 null，否則 coerce 到數字（供可空整數欄位用）
+const nullableInt = z.preprocess(
+  v => (v === '' || v === null || v === undefined ? null : v),
+  z.coerce.number().int().min(0, '不可為負').nullable()
+).default(null)
+
+// 活動核心＋紀錄
+export const gatheringInputSchema = z.object({
+  name: z.string().trim().min(1, '請輸入活動名稱'),
+  date,
+  startTime: time.or(z.literal('')).nullish(),
+  endTime: time.or(z.literal('')).nullish(),
+  location: z.string().trim().nullish(),
+  mapUrl: z.string().trim().nullish(),
+  cook: z.string().trim().nullish(),
+  assistant: z.string().trim().nullish(),
+  shopper: z.string().trim().nullish(),
+  process: z.string().nullish(),
+  attendees: z.string().nullish(),
+  // 引用食譜（可空）：空字串／null → null，否則轉整數
+  recipeId: z.preprocess(
+    v => (v === '' || v === null || v === undefined ? null : v),
+    z.coerce.number().int().nullable()
+  ).default(null),
+  note: z.string().trim().nullish()
+})
+
+export type GatheringInput = z.infer<typeof gatheringInputSchema>
+
+// 收支（upsert 一場活動的財務）
+export const gatheringFinanceSchema = z.object({
+  headcount: nullableInt,
+  fee: nullableInt,
+  expense: nullableInt
+})
+
+export type GatheringFinanceInput = z.infer<typeof gatheringFinanceSchema>
+
+// 食譜
+export const recipeInputSchema = z.object({
+  name: z.string().trim().min(1, '請輸入料理名稱'),
+  ingredients: z.string().nullish(),
+  steps: z.string().nullish(),
+  note: z.string().nullish()
+})
+
+export type RecipeInput = z.infer<typeof recipeInputSchema>
