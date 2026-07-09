@@ -13,9 +13,8 @@ export default defineNuxtConfig({
 
   css: ['~/assets/css/main.css'],
 
-  // 深/淺色由全站色系主題（useTheme）控制。用 cookie 儲存偏好：SSR 讀得到，
-  // 已設定過的瀏覽器再次載入時伺服器就渲染正確深/淺色、不閃爍。
-  // 預設 dark（預設主題「石墨黑」為深色）；首次造訪淺色主題僅該次會短暫閃一下。
+  // 深/淺色由「季節×時段」主題於執行期驅動（app/plugins/seasonal-theme.ts）。
+  // 這裡的 preference/fallback 僅為首屏 fallback；storage 用 cookie 讓已造訪者 SSR 就渲染正確深/淺。
   colorMode: {
     preference: 'dark',
     fallback: 'dark',

@@ -1,11 +1,10 @@
 export default defineAppConfig({
   ui: {
-    // 預設色系主題「石墨黑」的初值（zinc + neutral，深色）。
-    // 使用者透過 header 主題下拉切換時，useTheme 會在執行期改寫這裡的
-    // primary/neutral，Nuxt UI 即時重繪。
+    // 首屏 fallback 色盤；實際 primary/neutral 由「季節×時段」主題於執行期覆寫
+    // （app/composables/useSeasonalTheme.ts）。深/淺見 nuxt.config.ts 的 colorMode。
     colors: {
-      primary: 'zinc',
-      neutral: 'neutral'
+      primary: 'indigo',
+      neutral: 'slate'
     }
   }
 })
