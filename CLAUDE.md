@@ -6,11 +6,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 The repo ships a `justfile` whose recipes pin fnm's Node (currently **v24.17.0**, see `justfile:3`) onto `PATH`, so `just dev` / `just deploy` / `just db-migrate-local` etc. always run under the right node — even from a clean/non-interactive shell. Run `just` with no args to list recipes; recipe names map to the package scripts (replace `:` with `-`, e.g. `just db-migrate-local` → `bun run db:migrate:local`). **Use `just`; don't worry about node version.**
 
-Why it matters (only relevant if you bypass `just` and run `bun`/`bunx` directly): the machine's default `node` (`/usr/bin/node`) is **v18.19.1**, below Nuxt 4's required Node 20+, so `nuxt`/`wrangler`/`drizzle-kit` may crash with `SyntaxError: Unexpected identifier` on `import`. In that case put v22 on PATH yourself first (`fnm use 22`). Bun's package scripts shell out to node-shebang binaries that can resolve to the older `/usr/bin/node` otherwise.
+Why it matters (only relevant if you bypass `just` and run `bun`/`bunx` directly): the machine's default `node` (`/usr/bin/node`) is **v18.19.1**, below Nuxt 4's required Node 20+, so `nuxt`/`wrangler`/`drizzle-kit` may crash with `SyntaxError: Unexpected identifier` on `import`. In that case put v24 on PATH yourself first (`fnm use 24`, matching `justfile:3`). Bun's package scripts shell out to node-shebang binaries that can resolve to the older `/usr/bin/node` otherwise.
 
 ## Commands
 
-Prefer the `just` wrapper (auto-pins node v22); the raw `bun` scripts below are the underlying equivalents.
+Prefer the `just` wrapper (auto-pins node v24); the raw `bun` scripts below are the underlying equivalents.
 
 ```bash
 bun install                 # install deps (needs modern node for postinstall)
@@ -69,6 +69,8 @@ Accounts & CRM:
 - `contacts` — CRM leads, owned per-user. `broached` is a fixed boolean; `completedStages` is a JSON array of `contact_stages.id`. `nextFollowUp` is derived from `lastFollowUp` + `followUpFreq` via `computeNextFollowUp` (`server/utils/followup.ts`).
 - `contact_stages` — per-user customizable funnel stages (rename/reorder/delete).
 - `follow_up_logs` — timeline entries, many per contact.
+- `prospects` — the "每日任務" board (spec 0015): places a `contacts` row into a `section` (`develop`/`reserve`/`five`/`network`). Owned per-user like `contacts` (`userId` = `users.id`, `NULL` for super admin). Stores only its own `date`; name and other fields are read through the referenced `contactId`. Same person may appear in multiple sections but not twice in one; deleting a contact cascades to its prospects.
+- `settings` — generic single-key/value store. Currently **unused** — kept after the theme switcher was removed (spec 0017) so future site-wide settings can reuse it. No migration is generated for keeping it.
 
 `courses`/`events`/`equipment` carry a `classroom` field (中壢/新竹/台北/台中, default 中壢). The calendar filters by a classroom tab and only shows tabs the user's `classrooms` allow; the equipment page is hard-pinned to 中壢 (`app/pages/equipment.vue`).
 
