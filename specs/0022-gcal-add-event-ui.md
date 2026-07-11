@@ -96,3 +96,40 @@
 4. 唯讀帳號（無 `calendar`）：點事件只出現唯讀詳情彈窗、無編輯/刪除鈕；點空白格無反應。
 5. 窄螢幕（<640px）：兩種彈窗以置中/底部小彈窗呈現、不跑版。
 6. `bun run typecheck` 與 `bun run lint` 通過。
+
+## 擴充（第二階段）：更貼近 Google Calendar
+
+在上述兩段式體驗之上，補齊三項**純前端** GCal 能力。使用者的自訂欄位（類型 活動/課程、教室、角色 主持/分享/總結/PM、顏色）全部保留並整合。**不做**需後端基礎設施者：來賓邀請＋Email、Meet 視訊、提醒通知、時區、每日/每月/自訂重複（資料模型只支援不重複/每週）。
+
+### A. GCal 風格的完整編輯器版面（`UModal` 內容重排）
+
+把完整編輯視窗改成 GCal 詳情編輯器的視覺：
+
+- 頂部大字級**標題**輸入。
+- 類型（活動/課程）切換維持在標題下。
+- 圖示引導的各列：🕐 日期＋「全天」切換＋（非全天）開始–結束時間並列；🔁 重複；📍 地點；🏫 教室；🎨 顏色；👤 角色（僅 `kind==='course'`）；📝 備註。
+- `save()` / `remove()` / `applyCourseEdit()`（修改範圍）/ 匯入邏輯**完全不動**，只改版面與欄位排列。
+
+### B. 週／日 檢視切換
+
+- 新增相依 `@fullcalendar/timegrid`；`plugins` 加 `timeGridPlugin`。
+- `headerToolbar.right` 改成 `dayGridMonth,timeGridWeek,timeGridDay`，`buttonText` 補「月/週/日」。
+- 每週課展開（`expandCourse`）沿用；`datesSet` 已更新可見範圍，換檢視同樣觸發。有 `startTime` 的落在時間格、無 `startTime` 的進全天列。
+- **拖曳語意**：`onEventDrop` 對**單次活動**改為「時間感知」——用 `info.event.start`／`info.event.end` 換算新的 `date`＋`startTime`／`endTime`（保留時長）；對**每週課**維持只依 `info.delta.days` 改 `dayOfWeek`（不牽動「修改範圍」流程）。此差異刻意保留、於本節註明。
+
+### C. 拖曳建立（圈選時段）
+
+- `selectable: canEdit.value`、`select: onSelect`。
+- `onSelect(info)`：`resetForm()`、`mode='create'`，`form.date = ` 選取起始日；若 `!info.allDay`（週/日檢視圈選時段）帶入 `startTime`／`endTime`（取自 `info.start`／`info.end`）；錨定 `info.jsEvent` 開快速建立彈窗。
+- 資料模型單筆事件只有一個 `date`，**跨多日圈選僅取起始日**（於此註明）。
+
+### 時間格點擊的日期解析
+
+`timeGrid` 檢視的 `dateClick` 回傳含時間的 `dateStr`（如 `2026-07-18T09:00:00`）且帶 `allDay`。`onDateClick` 需拆出日期部分存入 `form.date`；若 `!allDay` 再帶入 `startTime`（並補一個預設 1 小時的 `endTime`）。
+
+### 擴充驗證（併入上方手動驗證）
+
+7. 右上角切「週」「日」檢視：每週課與單次活動落在正確時間格；換檢視不崩、可切回月檢視。
+8. 週檢視在空白時段**圈選** → 快速彈窗帶入該日與起訖時間。
+9. 週檢視拖曳單次活動到別的時間 → 時間與日期一起更新（重整後仍在新時間）。
+10. 完整編輯器改版後所有欄位（含角色、重複、修改範圍詢問）仍運作。

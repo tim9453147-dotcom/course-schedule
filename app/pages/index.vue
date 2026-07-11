@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import FullCalendar from '@fullcalendar/vue3'
 import dayGridPlugin from '@fullcalendar/daygrid'
+import timeGridPlugin from '@fullcalendar/timegrid'
 import interactionPlugin from '@fullcalendar/interaction'
 import zhTwLocale from '@fullcalendar/core/locales/zh-tw'
-import type { CalendarOptions, EventClickArg, EventDropArg } from '@fullcalendar/core'
+import type { CalendarOptions, EventClickArg, EventDropArg, DateSelectArg } from '@fullcalendar/core'
 import type { DateClickArg } from '@fullcalendar/interaction'
 
 // 是否能編輯課表（需有 calendar 頁權限；超級管理員全通）
@@ -31,7 +32,7 @@ watch(visibleClassrooms, (list) => {
   if (!list.includes(classroom.value)) classroom.value = list[0] ?? CLASSROOMS[0]!
 }, { immediate: true })
 
-const colorItems = COLOR_OPTIONS.map(c => ({ label: c.label, value: c.value }))
+const colorItems = COLOR_OPTIONS.map(c => ({ label: c.label, value: c.value, dot: c.dot }))
 const kindItems = KIND_OPTIONS
 const repeatItems = REPEAT_OPTIONS
 
@@ -48,8 +49,9 @@ const viewRange = ref<{ start: string, end: string }>((() => {
   return { start: toLocalDateStr(lo), end: toLocalDateStr(hi) }
 })())
 
-function onDatesSet(arg: { startStr: string, endStr: string }) {
+function onDatesSet(arg: { startStr: string, endStr: string, view: { type: string } }) {
   viewRange.value = { start: arg.startStr.slice(0, 10), end: arg.endStr.slice(0, 10) }
+  isTimeGrid.value = arg.view.type.startsWith('timeGrid')
 }
 
 // 把一門每週課展開成「可見範圍內」符合星期、且未被排除的個別日期（"YYYY-MM-DD"）。
@@ -106,34 +108,46 @@ const calendarEvents = computed(() => {
   return [...recurring, ...oneOff]
 })
 
+// 目前檢視是否為時間格（週/日）：時間格才顯示事件時間、圈選才帶時段
+const isTimeGrid = ref(false)
+
 const calendarOptions = computed<CalendarOptions>(() => ({
-  plugins: [dayGridPlugin, interactionPlugin],
+  plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin],
   initialView: 'dayGridMonth',
   locale: zhTwLocale,
   // 週日開頭（0）
   firstDay: 0,
   // 星期標題只顯示單字（日／一／二…），去掉「週」
   dayHeaderFormat: { weekday: 'narrow' },
-  // 格子只顯示日期數字（去掉「日」字）
+  // 格子只顯示日期數字（去掉「日」字）；時間格由 FullCalendar 自行渲染標頭
   dayCellContent: (arg: { date: Date }) => String(arg.date.getDate()),
+  // 月/週/日 檢視切換（像 Google 日曆右上角）
   headerToolbar: {
     left: 'prev,next today',
     center: 'title',
-    right: ''
+    right: 'dayGridMonth,timeGridWeek,timeGridDay'
   },
-  buttonText: { today: '今天' },
+  buttonText: { today: '今天', month: '月', week: '週', day: '日' },
+  // 時間格顯示範圍：06:00–23:00，避免整條 24 小時太長
+  slotMinTime: '06:00:00',
+  slotMaxTime: '23:00:00',
+  allDaySlot: true,
+  allDayText: '全天',
   height: 'auto',
   events: calendarEvents.value,
-  // 月曆事件只顯示名稱，不顯示時間
-  displayEventTime: false,
-  // 有編輯權限才能點選與拖曳
+  // 月檢視事件只顯示名稱；時間格才顯示時間
+  displayEventTime: isTimeGrid.value,
+  // 有編輯權限才能點選、拖曳與圈選
   editable: canEdit.value,
+  selectable: canEdit.value,
+  selectMirror: true,
   eventStartEditable: canEdit.value,
   eventDurationEditable: false, // 不允許用拖拉改長度（時間請用編輯視窗）
   eventClick: onEventClick,
   dateClick: onDateClick,
+  select: onSelect,
   eventDrop: onEventDrop,
-  // 換月／初次渲染時更新可見範圍，重新展開每週課
+  // 換月／換檢視／初次渲染時更新可見範圍，重新展開每週課
   datesSet: onDatesSet
 }))
 
@@ -148,6 +162,36 @@ const editingId = ref<number | null>(null)
 // 編輯每週課時，記住點到的是「哪一次」（用於 Google 日曆式的拆段／排除）
 const editingOccurrenceDate = ref('')
 const saving = ref(false)
+
+// ── Google 日曆式浮動面板：快速建立（點空白格）、詳情（點既有事件）──
+// 兩者互斥、共用同一個錨點（取自點擊座標的 virtual element）
+const quickOpen = ref(false)
+const detailOpen = ref(false)
+const anchorRef = ref<{ x: number, y: number } | null>(null)
+// UPopover 的 :reference 吃 Floating UI 的 virtual element；getBoundingClientRect
+// 只在 client 端浮層掛載時被呼叫，故 SSR 安全。
+const virtualAnchor = computed(() => {
+  const a = anchorRef.value
+  if (!a) return undefined
+  const rect = { x: a.x, y: a.y, top: a.y, left: a.x, right: a.x, bottom: a.y, width: 0, height: 0 }
+  return { getBoundingClientRect: () => rect }
+})
+// 詳情彈窗顯示資料（唯讀）
+const detail = ref<EventDetail | null>(null)
+
+// 快速建立的「全天」開關：關掉時帶入預設時段
+const quickAllDay = computed({
+  get: () => !form.startTime,
+  set: (v: boolean) => {
+    if (v) {
+      form.startTime = ''
+      form.endTime = ''
+    } else {
+      form.startTime = '09:00'
+      form.endTime = '10:00'
+    }
+  }
+})
 
 // 修改範圍（像 Google 日曆）：僅這一次 / 這次及之後 / 全部
 const scopeOpen = ref(false)
@@ -204,7 +248,7 @@ function onKindChange(value: string | number) {
 // 把 'YYYY-MM-DD' 轉成我們的星期（1=週一 ... 7=週日）
 function weekdayOf(dateStr: string) {
   const [y, m, d] = dateStr.split('-').map(Number)
-  const js = new Date(y, m - 1, d).getDay() // 0=週日 ... 6=週六
+  const js = new Date(y!, m! - 1, d!).getDay() // 0=週日 ... 6=週六
   return js === 0 ? 7 : js
 }
 
@@ -250,23 +294,73 @@ const startMinute = minuteModel('startTime')
 const endHour = hourModel('endTime')
 const endMinute = minuteModel('endTime')
 
-// 點空白日期 → 新增（預設：活動、不重複，日期帶入點選的那天）
+// 記住點擊座標當浮層錨點
+function setAnchor(ev: MouseEvent) {
+  anchorRef.value = { x: ev.clientX, y: ev.clientY }
+}
+
+// 從 Date 取 'HH:MM'（本地時區）
+function toLocalTimeStr(d: Date) {
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+// 一小時後的 'HH:MM'（給時間格點擊時的預設結束時間）
+function plusOneHour(hhmm: string) {
+  const [h, m] = hhmm.split(':').map(Number)
+  const nh = ((h ?? 0) + 1) % 24
+  return `${String(nh).padStart(2, '0')}:${String(m ?? 0).padStart(2, '0')}`
+}
+
+// 點日期欄位任一處都開日期選擇器（不只點右側 icon）
+function openDatePicker(e: MouseEvent) {
+  const root = e.currentTarget as HTMLElement
+  const input = (root.matches('input') ? root : root.querySelector('input')) as HTMLInputElement | null
+  try {
+    input?.showPicker?.()
+  } catch {
+    // 選擇器已開啟或瀏覽器不支援時忽略
+  }
+}
+
+// 點空白日期 → 快速建立彈窗（預設：活動、不重複，日期帶入點選的那天）
+// 時間格（週/日）點擊會帶時間；非全天時帶入起始時間＋預設 1 小時結束
 function onDateClick(info: DateClickArg) {
   if (!canEdit.value) return
   resetForm()
   mode.value = 'create'
-  form.date = info.dateStr
-  open.value = true
+  form.date = info.dateStr.slice(0, 10)
+  if (info.dateStr.includes('T') && !info.allDay) {
+    const start = toLocalTimeStr(info.date)
+    form.startTime = start
+    form.endTime = plusOneHour(start)
+  }
+  setAnchor(info.jsEvent as MouseEvent)
+  detailOpen.value = false
+  quickOpen.value = true
 }
 
-// 點現有事件 → 編輯
-function onEventClick(info: EventClickArg) {
+// 圈選一段（月檢視＝多日、時間格＝時段）→ 快速建立彈窗
+// 資料模型單筆只有一個日期，跨多日僅取起始日
+function onSelect(info: DateSelectArg) {
   if (!canEdit.value) return
+  resetForm()
+  mode.value = 'create'
+  form.date = toLocalDateStr(info.start)
+  if (!info.allDay) {
+    form.startTime = toLocalTimeStr(info.start)
+    form.endTime = toLocalTimeStr(info.end)
+  }
+  setAnchor(info.jsEvent as MouseEvent)
+  detailOpen.value = false
+  quickOpen.value = true
+}
+
+// 點現有事件 → 唯讀詳情彈窗（不論是否有編輯權限；編輯/刪除鈕才看權限）
+function onEventClick(info: EventClickArg) {
   const source = info.event.extendedProps.source as 'course' | 'event'
   const refId = info.event.extendedProps.refId as number
-  mode.value = 'edit'
-  editingId.value = refId
   editingSource.value = source
+  editingId.value = refId
 
   if (source === 'course') {
     const c = courses.value?.find(x => x.id === refId)
@@ -274,15 +368,49 @@ function onEventClick(info: EventClickArg) {
     // 點到的那一次（展開後每個實例都帶 occDate）；保險起見 fallback 用事件起始日
     const occ = (info.event.extendedProps.occDate as string) || info.event.startStr.slice(0, 10)
     editingOccurrenceDate.value = occ
+    detail.value = {
+      source, refId, occDate: occ,
+      title: c.title, kind: c.kind ?? 'course', color: c.color,
+      dateLabel: dateLabel(occ), timeLabel: timeLabel(c.startTime, c.endTime),
+      repeatLabel: `每週${dayName(c.dayOfWeek).slice(1)}`,
+      location: c.location ?? '',
+      host: c.host ?? '', sharer: c.sharer ?? '', summarizer: c.summarizer ?? '', pm: c.pm ?? '',
+      note: c.note ?? ''
+    }
+  } else {
+    const e = events.value?.find(x => x.id === refId)
+    if (!e) return
+    editingOccurrenceDate.value = ''
+    detail.value = {
+      source, refId, occDate: e.date,
+      title: e.title, kind: e.kind ?? 'activity', color: e.color,
+      dateLabel: dateLabel(e.date), timeLabel: timeLabel(e.startTime, e.endTime),
+      repeatLabel: '',
+      location: e.location ?? '',
+      host: e.host ?? '', sharer: e.sharer ?? '', summarizer: e.summarizer ?? '', pm: e.pm ?? '',
+      note: e.note ?? ''
+    }
+  }
+  setAnchor(info.jsEvent as MouseEvent)
+  quickOpen.value = false
+  detailOpen.value = true
+}
+
+// 詳情彈窗按「編輯」→ 把該筆預填進 form、開完整編輯視窗
+function openDetailEdit() {
+  const source = editingSource.value
+  if (source === 'course') {
+    const c = courses.value?.find(x => x.id === editingId.value)
+    if (!c) return
     Object.assign(form, {
       kind: c.kind ?? 'course', repeat: 'weekly',
       classroom: c.classroom, title: c.title,
       host: c.host ?? '', sharer: c.sharer ?? '', summarizer: c.summarizer ?? '', pm: c.pm ?? '',
-      date: occ, startTime: c.startTime, endTime: c.endTime,
+      date: editingOccurrenceDate.value || c.startDate || todayStr(), startTime: c.startTime, endTime: c.endTime,
       location: c.location ?? '', color: c.color, note: c.note ?? ''
     })
   } else {
-    const e = events.value?.find(x => x.id === refId)
+    const e = events.value?.find(x => x.id === editingId.value)
     if (!e) return
     Object.assign(form, {
       kind: e.kind ?? 'activity', repeat: 'none',
@@ -292,7 +420,16 @@ function onEventClick(info: EventClickArg) {
       location: e.location ?? '', color: e.color, note: e.note ?? ''
     })
   }
+  mode.value = 'edit'
+  detailOpen.value = false
   open.value = true
+}
+
+// 詳情彈窗按「刪除」
+async function onDetailDelete() {
+  if (!detail.value) return
+  const ok = await deleteEntry(detail.value.source, detail.value.refId, detail.value.title)
+  if (ok) detailOpen.value = false
 }
 
 // 把 Date 轉成本地時區的 'YYYY-MM-DD'
@@ -317,12 +454,19 @@ async function onEventDrop(info: EventDropArg) {
       const e = events.value?.find(x => x.id === refId)
       if (!e || !info.event.start) return
       const newDate = toLocalDateStr(info.event.start)
+      // 時間格拖曳：連同時間一起更新（保留時長）；月檢視只改日期、時間不動
+      let startTime = e.startTime ?? ''
+      let endTime = e.endTime ?? ''
+      if (isTimeGrid.value && !info.event.allDay) {
+        startTime = toLocalTimeStr(info.event.start)
+        endTime = info.event.end ? toLocalTimeStr(info.event.end) : plusOneHour(startTime)
+      }
       await $fetch(`/api/events/${refId}`, {
         method: 'PUT',
-        body: { ...e, date: newDate, startTime: e.startTime ?? '', endTime: e.endTime ?? '' }
+        body: { ...e, date: newDate, startTime, endTime }
       })
       await refreshEvents()
-      notify.success(`已移到 ${newDate}`)
+      notify.success(`已移到 ${newDate}${startTime ? ` ${startTime}` : ''}`)
     } else {
       const c = courses.value?.find(x => x.id === refId)
       if (!c) return
@@ -406,6 +550,7 @@ async function save() {
     await Promise.all([refreshCourses(), refreshEvents()])
     notify.success('已儲存')
     open.value = false
+    quickOpen.value = false
   } catch {
     notify.error('儲存失敗', '請檢查欄位內容')
   } finally {
@@ -489,22 +634,36 @@ async function applyCourseEdit(scope: 'this' | 'following' | 'all') {
   }
 }
 
-async function remove() {
-  if (mode.value !== 'edit' || editingId.value === null) return
-  if (!(await confirm({ title: '刪除', description: `確定刪除「${form.title}」？`, danger: true }))) return
+// 刪除單筆（詳情彈窗與編輯視窗共用）；回傳是否成功刪除
+async function deleteEntry(source: 'course' | 'event', id: number, title: string) {
+  if (!(await confirm({ title: '刪除', description: `確定刪除「${title}」？`, danger: true }))) return false
   try {
-    if (editingSource.value === 'course') {
-      await $fetch(`/api/courses/${editingId.value}`, { method: 'DELETE' })
+    if (source === 'course') {
+      await $fetch(`/api/courses/${id}`, { method: 'DELETE' })
       await refreshCourses()
     } else {
-      await $fetch(`/api/events/${editingId.value}`, { method: 'DELETE' })
+      await $fetch(`/api/events/${id}`, { method: 'DELETE' })
       await refreshEvents()
     }
     notify.success('已刪除')
-    open.value = false
+    return true
   } catch {
     notify.error('刪除失敗')
+    return false
   }
+}
+
+async function remove() {
+  if (mode.value !== 'edit' || editingId.value === null) return
+  if (await deleteEntry(editingSource.value, editingId.value, form.title)) {
+    open.value = false
+  }
+}
+
+// 快速建立彈窗按「更多選項」→ 沿用已輸入的 form 開完整編輯視窗
+function openMore() {
+  quickOpen.value = false
+  open.value = true
 }
 
 const modalTitle = computed(() => {
@@ -779,77 +938,172 @@ async function onAiImage(e: Event) {
       </ClientOnly>
     </div>
 
-    <!-- 新增 / 編輯視窗 -->
-    <UModal v-model:open="open" :title="modalTitle">
-      <template #body>
-        <div class="space-y-4">
-          <!-- 類型（活動 / 課程）：只是分類，會帶入不同預設顏色 -->
-          <UFormField label="類型">
-            <UTabs :model-value="form.kind" :items="kindItems" size="sm" @update:model-value="onKindChange" />
-          </UFormField>
-
-          <div class="grid grid-cols-2 gap-4">
-            <UFormField label="教室">
-              <USelect v-model="form.classroom" :items="tabItems" class="w-full" />
-            </UFormField>
-            <UFormField :label="form.kind === 'course' ? '課程名稱' : '活動名稱'">
-              <UInput v-model="form.title" class="w-full" />
-            </UFormField>
+    <!-- 快速建立彈窗（點空白格，錨定點擊處，像 Google 日曆） -->
+    <UPopover
+      v-model:open="quickOpen"
+      :reference="virtualAnchor"
+      :content="{ side: 'bottom', align: 'start' }"
+    >
+      <template #content>
+        <div class="w-[min(20rem,calc(100vw-1.5rem))] space-y-3 p-4">
+          <p class="text-sm text-muted">
+            {{ dateLabel(form.date) }}
+          </p>
+          <UInput
+            v-model="form.title"
+            autofocus
+            placeholder="加入標題"
+            size="lg"
+            class="w-full"
+            @keydown.enter="save"
+          />
+          <div class="flex items-center gap-2 text-sm">
+            <USwitch v-model="quickAllDay" size="sm" />
+            <span class="text-muted">全天</span>
           </div>
-
-          <div class="grid grid-cols-2 gap-4">
-            <UFormField label="日期">
-              <UInput v-model="form.date" type="date" class="w-full" />
-            </UFormField>
-            <UFormField label="教室 / 地點">
-              <UInput v-model="form.location" class="w-full" />
-            </UFormField>
-          </div>
-
-          <!-- 重複方式（像 Google 日曆）：不重複＝單次、每週重複＝每週同一天 -->
-          <UFormField label="重複">
-            <USelect v-model="form.repeat" :items="repeatItems" class="w-full" />
-            <template #help>
-              <span v-if="form.repeat === 'weekly'">每週{{ weeklyDayLabel }}重複</span>
-            </template>
-          </UFormField>
-
-          <UFormField :label="form.repeat === 'none' ? '開始（不指定＝整天）' : '開始'">
-            <div class="grid grid-cols-2 gap-2">
+          <div v-if="!quickAllDay" class="grid grid-cols-2 gap-2">
+            <div class="grid grid-cols-2 gap-1">
               <USelect v-model="startHour" :items="hourItems" placeholder="時" class="w-full" />
               <USelect v-model="startMinute" :items="minuteItems" :disabled="startHour === ALL_DAY" placeholder="分" class="w-full" />
             </div>
-          </UFormField>
-          <UFormField label="結束">
-            <div class="grid grid-cols-2 gap-2">
+            <div class="grid grid-cols-2 gap-1">
               <USelect v-model="endHour" :items="hourItems" placeholder="時" class="w-full" />
               <USelect v-model="endMinute" :items="minuteItems" :disabled="endHour === ALL_DAY" placeholder="分" class="w-full" />
             </div>
-          </UFormField>
+          </div>
+          <div class="flex items-center justify-between pt-1">
+            <UButton color="neutral" variant="ghost" size="sm" @click="openMore">
+              更多選項
+            </UButton>
+            <UButton :loading="saving" @click="save">
+              儲存
+            </UButton>
+          </div>
+        </div>
+      </template>
+    </UPopover>
 
-          <!-- 課程角色（只在類型=課程時顯示，皆可留空） -->
-          <div v-if="form.kind === 'course'" class="grid grid-cols-2 gap-4">
-            <UFormField label="主持">
-              <UInput v-model="form.host" class="w-full" />
-            </UFormField>
-            <UFormField label="分享">
-              <UInput v-model="form.sharer" class="w-full" />
-            </UFormField>
-            <UFormField label="總結">
-              <UInput v-model="form.summarizer" class="w-full" />
-            </UFormField>
-            <UFormField label="PM">
-              <UInput v-model="form.pm" class="w-full" />
-            </UFormField>
+    <!-- 詳情彈窗（點既有事件，唯讀＋編輯/刪除，像 Google 日曆） -->
+    <UPopover
+      v-model:open="detailOpen"
+      :reference="virtualAnchor"
+      :content="{ side: 'bottom', align: 'start' }"
+    >
+      <template #content>
+        <EventDetailPopover
+          v-if="detail"
+          :detail="detail"
+          :can-edit="canEdit"
+          @edit="openDetailEdit"
+          @delete="onDetailDelete"
+        />
+      </template>
+    </UPopover>
+
+    <!-- 新增 / 編輯視窗 -->
+    <UModal v-model:open="open" :title="modalTitle">
+      <template #body>
+        <div class="space-y-5">
+          <!-- 標題（大字級，像 Google 日曆） -->
+          <UInput
+            v-model="form.title"
+            variant="none"
+            size="xl"
+            :placeholder="form.kind === 'course' ? '課程名稱' : '活動名稱'"
+            class="w-full border-b border-default px-0 text-xl font-medium"
+          />
+
+          <!-- 類型（活動 / 課程）：只是分類，會帶入不同預設顏色 -->
+          <UTabs :model-value="form.kind" :items="kindItems" size="sm" @update:model-value="onKindChange" />
+
+          <!-- 日期 + 全天 + 時間 -->
+          <div class="flex items-start gap-3">
+            <UIcon name="i-lucide-clock" class="mt-2 size-5 shrink-0 text-muted" />
+            <div class="flex-1 space-y-2">
+              <div class="flex flex-wrap items-center gap-3">
+                <UInput v-model="form.date" type="date" class="cursor-pointer [&_input]:cursor-pointer" @click="openDatePicker" />
+                <div class="ml-auto flex items-center gap-2">
+                  <USwitch v-model="quickAllDay" size="sm" />
+                  <span class="text-sm text-muted">全天</span>
+                </div>
+              </div>
+              <div v-if="!quickAllDay" class="grid grid-cols-2 gap-2">
+                <div class="grid grid-cols-2 gap-1">
+                  <USelect v-model="startHour" :items="hourItems" placeholder="時" class="w-full" />
+                  <USelect v-model="startMinute" :items="minuteItems" :disabled="startHour === ALL_DAY" placeholder="分" class="w-full" />
+                </div>
+                <div class="grid grid-cols-2 gap-1">
+                  <USelect v-model="endHour" :items="hourItems" placeholder="時" class="w-full" />
+                  <USelect v-model="endMinute" :items="minuteItems" :disabled="endHour === ALL_DAY" placeholder="分" class="w-full" />
+                </div>
+              </div>
+            </div>
           </div>
 
-          <UFormField label="顏色">
-            <USelect v-model="form.color" :items="colorItems" class="w-full" />
-          </UFormField>
+          <!-- 重複（不重複＝單次、每週重複＝每週同一天） -->
+          <div class="flex items-center gap-3">
+            <UIcon name="i-lucide-repeat" class="size-5 shrink-0 text-muted" />
+            <div class="flex-1">
+              <USelect v-model="form.repeat" :items="repeatItems" class="w-full" />
+              <p v-if="form.repeat === 'weekly'" class="mt-1 text-xs text-muted">
+                每週{{ weeklyDayLabel }}重複
+              </p>
+            </div>
+          </div>
 
-          <UFormField label="備註">
-            <UTextarea v-model="form.note" class="w-full" :rows="2" />
-          </UFormField>
+          <!-- 地點 -->
+          <div class="flex items-center gap-3">
+            <UIcon name="i-lucide-map-pin" class="size-5 shrink-0 text-muted" />
+            <UInput v-model="form.location" placeholder="地點" class="flex-1" />
+          </div>
+
+          <!-- 教室 -->
+          <div class="flex items-center gap-3">
+            <UIcon name="i-lucide-building-2" class="size-5 shrink-0 text-muted" />
+            <USelect v-model="form.classroom" :items="tabItems" class="flex-1" />
+          </div>
+
+          <!-- 顏色（色票，像 Google 日曆） -->
+          <div class="flex items-center gap-3">
+            <UIcon name="i-lucide-palette" class="size-5 shrink-0 text-muted" />
+            <div class="flex flex-wrap gap-2">
+              <button
+                v-for="c in colorItems"
+                :key="c.value"
+                type="button"
+                :aria-label="c.label"
+                :title="c.label"
+                class="size-6 rounded-full ring-offset-2 ring-offset-default transition"
+                :class="[c.dot, form.color === c.value ? 'ring-2 ring-inverted' : 'ring-0']"
+                @click="form.color = c.value"
+              />
+            </div>
+          </div>
+
+          <!-- 課程角色（只在類型=課程時顯示，皆可留空） -->
+          <div v-if="form.kind === 'course'" class="flex items-start gap-3">
+            <UIcon name="i-lucide-users" class="mt-2 size-5 shrink-0 text-muted" />
+            <div class="grid flex-1 grid-cols-2 gap-3">
+              <UFormField label="主持">
+                <UInput v-model="form.host" class="w-full" />
+              </UFormField>
+              <UFormField label="分享">
+                <UInput v-model="form.sharer" class="w-full" />
+              </UFormField>
+              <UFormField label="總結">
+                <UInput v-model="form.summarizer" class="w-full" />
+              </UFormField>
+              <UFormField label="PM">
+                <UInput v-model="form.pm" class="w-full" />
+              </UFormField>
+            </div>
+          </div>
+
+          <!-- 備註 -->
+          <div class="flex items-start gap-3">
+            <UIcon name="i-lucide-align-left" class="mt-2 size-5 shrink-0 text-muted" />
+            <UTextarea v-model="form.note" placeholder="備註" class="flex-1" :rows="2" />
+          </div>
 
           <div class="flex items-center justify-between pt-2">
             <UButton

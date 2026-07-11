@@ -17,6 +17,25 @@ const { data: users, refresh } = await useFetch<AdminUser[]>('/api/users', {
   default: () => []
 })
 
+// AI 辨識 prompt（超管可調整；見 specs/0023）
+const { data: aiData } = await useFetch<{ prompt: string }>('/api/settings/ai-extract-prompt')
+const aiPrompt = ref(aiData.value?.prompt ?? DEFAULT_AI_EXTRACT_PROMPT)
+const aiSaving = ref(false)
+// 顯示用字面 token（避免在 template 直接寫 {{year}} 被 Vue 當成插值）
+const yearToken = '{{year}}'
+
+async function saveAiPrompt() {
+  aiSaving.value = true
+  try {
+    await $fetch('/api/settings/ai-extract-prompt', { method: 'PUT', body: { prompt: aiPrompt.value } })
+    notify.success('已儲存 AI 辨識設定')
+  } catch {
+    notify.error('儲存失敗')
+  } finally {
+    aiSaving.value = false
+  }
+}
+
 const statusMeta: Record<string, { label: string, color: 'warning' | 'success' | 'neutral' | 'error' }> = {
   pending: { label: '待審核', color: 'warning' },
   approved: { label: '已啟用', color: 'success' },
@@ -189,6 +208,30 @@ async function removeUser(u: AdminUser) {
           </div>
         </div>
       </UCard>
+    </section>
+
+    <!-- AI 辨識設定：課表圖片辨識用的 prompt（見 specs/0023） -->
+    <section class="space-y-3">
+      <h2 class="text-lg font-semibold">
+        AI 辨識設定
+      </h2>
+      <p class="text-sm text-muted">
+        「上傳課表圖片」辨識時給 AI 的指令。<code class="text-default">{{ yearToken }}</code> 會在辨識時自動代入當年年份。
+      </p>
+      <UTextarea
+        v-model="aiPrompt"
+        :rows="14"
+        class="w-full font-mono text-sm"
+        :ui="{ base: 'font-mono' }"
+      />
+      <div class="flex gap-2">
+        <UButton :loading="aiSaving" @click="saveAiPrompt">
+          儲存
+        </UButton>
+        <UButton color="neutral" variant="ghost" @click="aiPrompt = DEFAULT_AI_EXTRACT_PROMPT">
+          還原預設
+        </UButton>
+      </div>
     </section>
   </UContainer>
 </template>

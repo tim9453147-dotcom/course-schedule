@@ -155,9 +155,7 @@ async function changePassword() {
 
     <UFooter>
       <template #left>
-        <p class="text-sm text-muted">
-          Built with Nuxt + Cloudflare • © {{ new Date().getFullYear() }}
-        </p>
+        <p class="text-sm text-muted" />
       </template>
     </UFooter>
 

@@ -76,6 +76,40 @@ export function dayName(day: number) {
   return DAY_NAMES[day - 1] ?? `第 ${day} 天`
 }
 
+// 顯示用：把 'YYYY-MM-DD' 轉成「7/11 週五」
+export function dateLabel(ds: string) {
+  const [y, m, d] = ds.split('-').map(Number)
+  if (!y || !m || !d) return ds
+  const js = new Date(y, m - 1, d).getDay() // 0=週日 ... 6=週六
+  const dow = js === 0 ? 7 : js
+  return `${m}/${d} ${dayName(dow)}`
+}
+
+// 顯示用：時間標籤（無起始時間＝全天）
+export function timeLabel(startTime: string | null | undefined, endTime: string | null | undefined) {
+  if (!startTime) return '全天'
+  return endTime ? `${startTime}–${endTime}` : startTime
+}
+
+// 詳情彈窗（唯讀）用的顯示資料；由 index.vue 從 course/event 整形後傳入
+export interface EventDetail {
+  source: 'course' | 'event'
+  refId: number
+  occDate: string
+  title: string
+  kind: string
+  color: string
+  dateLabel: string
+  timeLabel: string
+  repeatLabel: string
+  location: string
+  host: string
+  sharer: string
+  summarizer: string
+  pm: string
+  note: string
+}
+
 // 可選顏色，class 字串寫死，Tailwind 才掃得到（不能用動態字串拼接）
 export const COLOR_OPTIONS = [
   { value: 'sky', label: '天藍', card: 'bg-sky-50 dark:bg-sky-950 border-sky-300 dark:border-sky-800', dot: 'bg-sky-500' },
@@ -87,11 +121,11 @@ export const COLOR_OPTIONS = [
 ]
 
 export function colorCard(color: string) {
-  return (COLOR_OPTIONS.find(c => c.value === color) ?? COLOR_OPTIONS[0]).card
+  return (COLOR_OPTIONS.find(c => c.value === color) ?? COLOR_OPTIONS[0]!).card
 }
 
 export function colorDot(color: string) {
-  return (COLOR_OPTIONS.find(c => c.value === color) ?? COLOR_OPTIONS[0]).dot
+  return (COLOR_OPTIONS.find(c => c.value === color) ?? COLOR_OPTIONS[0]!).dot
 }
 
 // FullCalendar 需要實際色碼（不是 Tailwind class）
