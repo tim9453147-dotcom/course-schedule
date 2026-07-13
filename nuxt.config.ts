@@ -11,6 +11,11 @@ export default defineNuxtConfig({
     enabled: true
   },
 
+  // 本機開發伺服器 port
+  devServer: {
+    port: 1125
+  },
+
   css: ['~/assets/css/main.css'],
 
   // 深/淺色由「季節×時段」主題於執行期驅動（app/plugins/seasonal-theme.ts）。

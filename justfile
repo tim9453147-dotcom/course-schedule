@@ -10,7 +10,7 @@ default:
 install:
     bun install
 
-# 開發伺服器 http://localhost:3000
+# 開發伺服器 http://localhost:1125
 dev:
     bun dev
 
