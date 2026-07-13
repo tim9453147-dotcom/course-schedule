@@ -32,6 +32,28 @@ export default defineNuxtConfig({
     preset: 'cloudflare-pages'
   },
 
+  // 把肥大的 FullCalendar 拆成獨立 chunk，避免主包超過 500kB 警告、並改善首屏載入。
+  // 只作用於 client build（$client）：SSR build 關閉 code-splitting，設 manualChunks 會被警告。
+  vite: {
+    $client: {
+      build: {
+        rollupOptions: {
+          output: {
+            manualChunks: {
+              fullcalendar: [
+                '@fullcalendar/core',
+                '@fullcalendar/daygrid',
+                '@fullcalendar/timegrid',
+                '@fullcalendar/interaction',
+                '@fullcalendar/vue3'
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+
   runtimeConfig: {
     // 伺服器端可用，預設空字串，由環境變數覆寫：
     //   NUXT_ADMIN_USERNAME / NUXT_ADMIN_PASSWORD
