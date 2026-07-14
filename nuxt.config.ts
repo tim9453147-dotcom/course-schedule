@@ -62,7 +62,12 @@ export default defineNuxtConfig({
     adminPassword: '',
     // Gemini 圖片辨識匯入（免費方案）：NUXT_GEMINI_API_KEY / NUXT_GEMINI_MODEL
     geminiApiKey: '',
-    geminiModel: 'gemini-2.5-flash'
+    geminiModel: 'gemini-2.5-flash',
+    // LINE Messaging API（課表異動通知，見 specs/0025）：
+    //   NUXT_LINE_CHANNEL_ACCESS_TOKEN（push 訊息）
+    //   NUXT_LINE_CHANNEL_SECRET（webhook 簽章驗證）
+    lineChannelAccessToken: '',
+    lineChannelSecret: ''
   },
 
   compatibilityDate: '2025-01-15',
