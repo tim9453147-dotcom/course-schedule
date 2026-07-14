@@ -37,8 +37,9 @@ export function useNotify() {
   }
 
   return {
-    success(title: string, description?: string) {
-      add('success', 'i-lucide-circle-check', title, description)
+    // 成功／確認提示已停用：動作完成後不再跳 toast（僅保留錯誤提示）。
+    // 保留相同簽章，呼叫端 notify.success(...) 無需改動。
+    success(_title: string, _description?: string) {
     },
     error(title: string, description?: string) {
       add('error', 'i-lucide-circle-alert', title, description)
