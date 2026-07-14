@@ -19,5 +19,14 @@ export default defineEventHandler(async (event) => {
   if (!deleted) {
     throw createError({ statusCode: 404, statusMessage: '找不到這門課程' })
   }
+
+  await logScheduleChange(db, {
+    entityType: 'course',
+    entityId: deleted.id,
+    action: 'deleted',
+    classroom: deleted.classroom,
+    summary: buildCourseSummary(deleted)
+  })
+
   return { ok: true }
 })

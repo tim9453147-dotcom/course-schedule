@@ -16,6 +16,19 @@ export default defineEventHandler(async (event) => {
       endDate: data.endDate || null
     })
     .returning()
+
+  if (!created) {
+    throw createError({ statusCode: 500, statusMessage: '課程建立失敗' })
+  }
+
+  await logScheduleChange(db, {
+    entityType: 'course',
+    entityId: created.id,
+    action: 'created',
+    classroom: created.classroom,
+    summary: buildCourseSummary(created)
+  })
+
   setResponseStatus(event, 201)
   return created
 })

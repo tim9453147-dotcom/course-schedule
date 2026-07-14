@@ -50,6 +50,17 @@ export default defineEventHandler(async (event) => {
   const first = results[0]
   const deleted = mode === 'replace' && replaceFrom && replaceTo && Array.isArray(first) ? first.length : 0
 
+  // 批次匯入記一筆彙整型變更（entityId=0，發送時不與其他列合併），見 specs/0025
+  if (rows.length > 0) {
+    await logScheduleChange(db, {
+      entityType: 'event',
+      entityId: 0,
+      action: 'created',
+      classroom,
+      summary: `批次匯入 ${rows.length} 筆活動`
+    })
+  }
+
   setResponseStatus(event, 201)
   return { inserted: rows.length, deleted }
 })

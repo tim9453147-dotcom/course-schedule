@@ -26,5 +26,14 @@ export default defineEventHandler(async (event) => {
   if (!updated) {
     throw createError({ statusCode: 404, statusMessage: '找不到這個活動' })
   }
+
+  await logScheduleChange(db, {
+    entityType: 'event',
+    entityId: updated.id,
+    action: 'updated',
+    classroom: updated.classroom,
+    summary: buildEventSummary(updated)
+  })
+
   return updated
 })

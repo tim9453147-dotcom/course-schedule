@@ -288,11 +288,39 @@ export const recipes = sqliteTable('recipes', {
     .$defaultFn(() => Math.floor(Date.now() / 1000))
 })
 
-// 全站設定（通用鍵值表，單列一鍵）。目前未使用，保留供日後全站設定重用。
+// 全站設定（通用鍵值表，單列一鍵）。用於存 LINE 群組 ID（key=line_group_id，見 specs/0025）。
 export const settings = sqliteTable('settings', {
   key: text('key').primaryKey(),
   value: text('value').notNull(),
   updatedAt: integer('updated_at')
+    .notNull()
+    .$defaultFn(() => Math.floor(Date.now() / 1000))
+})
+
+// 課表變更紀錄（每日 LINE 通知用，見 specs/0025）。
+// 每次 courses/events 的新增/修改/刪除各記一筆；notifiedAt 為 null 代表「待通知」。
+// entityId=0 代表彙整型異動（例如批次匯入），發送時不與其他列合併。
+export const scheduleChanges = sqliteTable('schedule_changes', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  entityType: text('entity_type').notNull(), // course / event
+  entityId: integer('entity_id').notNull().default(0),
+  action: text('action').notNull(), // created / updated / deleted
+  classroom: text('classroom').notNull(),
+  summary: text('summary').notNull(),
+  createdAt: integer('created_at')
+    .notNull()
+    .$defaultFn(() => Math.floor(Date.now() / 1000)),
+  notifiedAt: integer('notified_at')
+})
+
+// 通知發送紀錄（見 specs/0025）。每次嘗試 push 記一筆，供除錯。
+export const notificationLogs = sqliteTable('notification_logs', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  channel: text('channel').notNull(), // line（未來 discord/…）
+  target: text('target'), // 群組 ID
+  status: text('status').notNull(), // success / failed
+  errorMessage: text('error_message'),
+  sentAt: integer('sent_at')
     .notNull()
     .$defaultFn(() => Math.floor(Date.now() / 1000))
 })
@@ -318,6 +346,10 @@ export type Prospect = typeof prospects.$inferSelect
 export type NewProspect = typeof prospects.$inferInsert
 export type Setting = typeof settings.$inferSelect
 export type NewSetting = typeof settings.$inferInsert
+export type ScheduleChange = typeof scheduleChanges.$inferSelect
+export type NewScheduleChange = typeof scheduleChanges.$inferInsert
+export type NotificationLog = typeof notificationLogs.$inferSelect
+export type NewNotificationLog = typeof notificationLogs.$inferInsert
 export type Gathering = typeof gatherings.$inferSelect
 export type NewGathering = typeof gatherings.$inferInsert
 export type GatheringFinance = typeof gatheringFinances.$inferSelect
