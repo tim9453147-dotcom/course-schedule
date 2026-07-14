@@ -22,6 +22,17 @@ const financeById = computed(() => {
 })
 const money = (n: number) => n.toLocaleString('zh-TW')
 
+// 後端對每場活動都回一列（leftJoin），未填收支者 headcount/fee/expense 皆為 null，
+// 但 income/profit 仍算成 0；三欄皆為 null 視為「未填收支」，清單列不顯示盈餘徽章。
+function financeOf(id: number) {
+  const f = financeById.value.get(id)
+  if (!f) return null
+  if (f.headcount == null && f.fee == null && f.expense == null) return null
+  return f
+}
+// 清單列用：每場活動只查一次收支，避免同一個 <button> 內重複查表。
+const gatheringRows = computed(() => (gatherings.value ?? []).map(g => ({ g, fin: financeOf(g.id) })))
+
 // 名單（操鍋/助手/採買下拉建議）：best-effort，無 crm 權時為空，退回自由輸入。
 const { data: contacts } = await useFetch<Contact[]>('/api/contacts', { default: () => [] })
 const contactNames = computed(() => Array.from(new Set((contacts.value ?? []).map(c => c.name))))
@@ -193,25 +204,25 @@ async function remove() {
 
     <div class="space-y-2">
       <button
-        v-for="g in gatherings"
-        :key="g.id"
+        v-for="row in gatheringRows"
+        :key="row.g.id"
         type="button"
         class="hover:bg-elevated/50 flex w-full items-center gap-3 rounded-lg border border-default px-4 py-3 text-left transition"
-        @click="openRow(g)"
+        @click="openRow(row.g)"
       >
-        <span class="text-primary font-mono text-sm tabular-nums">{{ g.date }}</span>
-        <span class="font-medium">{{ g.name }}</span>
+        <span class="text-primary font-mono text-sm tabular-nums">{{ row.g.date }}</span>
+        <span class="font-medium">{{ row.g.name }}</span>
         <span
-          v-if="g.location"
+          v-if="row.g.location"
           class="text-muted text-sm"
           :class="canFinance ? '' : 'ml-auto'"
-        >{{ g.location }}</span>
+        >{{ row.g.location }}</span>
         <span
-          v-if="canFinance && financeById.get(g.id)"
+          v-if="canFinance && row.fin"
           class="ml-auto font-mono font-semibold tabular-nums"
-          :class="financeById.get(g.id)!.profit >= 0 ? 'text-success' : 'text-error'"
+          :class="row.fin.profit >= 0 ? 'text-success' : 'text-error'"
         >
-          {{ financeById.get(g.id)!.profit >= 0 ? '+' : '−' }}{{ money(Math.abs(financeById.get(g.id)!.profit)) }}
+          {{ row.fin.profit >= 0 ? '+' : '−' }}{{ money(Math.abs(row.fin.profit)) }}
         </span>
       </button>
     </div>
