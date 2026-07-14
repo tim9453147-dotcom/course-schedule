@@ -3,10 +3,24 @@
 // 操鍋/助手/採買以 UInputMenu 提供名單建議＋可自由輸入（存人名文字）。
 // 明細中點食譜名稱可展開該食譜的食材／作法（需有食譜讀取權才抓得到）。
 const canEdit = useCanEdit('gathering')
+// 收支：有此權限才顯示與抓取。無權限者不發此請求，後端亦守門。
+const canFinance = useCanEdit('gathering-finance')
 const notify = useNotify()
 const confirm = useConfirm()
 
 const { data: gatherings, refresh } = await useFetch<Gathering[]>('/api/gatherings', { deep: true })
+
+// 收支列表：僅 canFinance 時抓（immediate 依權限），建 id→財務 map 供清單/明細取值。
+const { data: finances, refresh: refreshFinances } = await useFetch<GatheringFinanceRow[]>(
+  '/api/gathering-finances',
+  { deep: true, default: () => [], immediate: canFinance.value }
+)
+const financeById = computed(() => {
+  const m = new Map<number, GatheringFinanceRow>()
+  for (const r of finances.value ?? []) m.set(r.id, r)
+  return m
+})
+const money = (n: number) => n.toLocaleString('zh-TW')
 
 // 名單（操鍋/助手/採買下拉建議）：best-effort，無 crm 權時為空，退回自由輸入。
 const { data: contacts } = await useFetch<Contact[]>('/api/contacts', { default: () => [] })
@@ -71,25 +85,45 @@ const showRecipe = ref(false) // 明細內是否展開食譜食材/作法
 const blank = () => ({
   name: '家聚', date: '', startTime: '19:00', endTime: '21:00', location: '吾心家', mapUrl: '',
   cook: '', assistant: '', shopper: '', process: '', attendees: '',
-  recipeId: null as number | null, note: ''
+  recipeId: null as number | null, note: '',
+  // 收支（字串存放，存檔時轉數字）
+  headcount: '', fee: '', expense: ''
 })
 const form = reactive(blank())
+
+// 收支區塊可折疊、預設收合
+const showFinance = ref(false)
+// 即時預覽：收入＝人數×收費、盈餘＝收入−支出
+const financePreview = computed(() =>
+  computeFinance(Number(form.headcount) || 0, Number(form.fee) || 0, Number(form.expense) || 0)
+)
+// 空字串→null，否則轉數字
+function toNull(v: string) {
+  const s = String(v ?? '').trim()
+  return s === '' ? null : Number(s)
+}
 
 function openCreate() {
   editingId.value = null
   Object.assign(form, blank())
   showRecipe.value = false
+  showFinance.value = false
   open.value = true
 }
 function openRow(g: Gathering) {
   editingId.value = g.id
+  const fin = financeById.value.get(g.id)
   Object.assign(form, {
     name: g.name, date: g.date, startTime: g.startTime ?? '', endTime: g.endTime ?? '',
     location: g.location ?? '', mapUrl: g.mapUrl ?? '', cook: g.cook ?? '',
     assistant: g.assistant ?? '', shopper: g.shopper ?? '', process: g.process ?? '',
-    attendees: g.attendees ?? '', recipeId: g.recipeId, note: g.note ?? ''
+    attendees: g.attendees ?? '', recipeId: g.recipeId, note: g.note ?? '',
+    headcount: fin?.headcount == null ? '' : String(fin.headcount),
+    fee: fin?.fee == null ? '' : String(fin.fee),
+    expense: fin?.expense == null ? '' : String(fin.expense)
   })
   showRecipe.value = false
+  showFinance.value = false
   open.value = true
 }
 
@@ -102,8 +136,15 @@ async function save() {
   try {
     const url = editingId.value ? `/api/gatherings/${editingId.value}` : '/api/gatherings'
     await $fetch(url, { method: editingId.value ? 'PUT' : 'POST', body: { ...form } })
+    // 先存活動、後補收支：僅編輯既有活動且有收支權時才寫收支（新增時無收支區塊）
+    if (canFinance.value && editingId.value) {
+      await $fetch(`/api/gathering-finances/${editingId.value}`, {
+        method: 'PUT',
+        body: { headcount: toNull(form.headcount), fee: toNull(form.fee), expense: toNull(form.expense) }
+      })
+    }
     open.value = false
-    await refresh()
+    await Promise.all([refresh(), canFinance.value ? refreshFinances() : Promise.resolve()])
     notify.success(editingId.value ? '已更新活動' : '已新增活動')
   } catch (err: unknown) {
     const msg = (err as { statusMessage?: string })?.statusMessage ?? '請檢查欄位內容'
@@ -162,8 +203,16 @@ async function remove() {
         <span class="font-medium">{{ g.name }}</span>
         <span
           v-if="g.location"
-          class="text-muted ml-auto text-sm"
+          class="text-muted text-sm"
+          :class="canFinance ? '' : 'ml-auto'"
         >{{ g.location }}</span>
+        <span
+          v-if="canFinance && financeById.get(g.id)"
+          class="ml-auto font-mono font-semibold tabular-nums"
+          :class="financeById.get(g.id)!.profit >= 0 ? 'text-success' : 'text-error'"
+        >
+          {{ financeById.get(g.id)!.profit >= 0 ? '+' : '−' }}{{ money(Math.abs(financeById.get(g.id)!.profit)) }}
+        </span>
       </button>
     </div>
 
@@ -361,6 +410,82 @@ async function remove() {
               class="w-full"
             />
           </UFormField>
+
+          <div
+            v-if="canFinance && editingId"
+            class="border-default rounded-lg border"
+          >
+            <button
+              type="button"
+              class="hover:bg-elevated/50 flex w-full items-center gap-2 px-4 py-3 text-left font-medium transition"
+              @click="showFinance = !showFinance"
+            >
+              <UIcon
+                name="i-lucide-wallet"
+                class="text-primary"
+              />
+              收支
+              <span class="text-muted ml-2 font-mono text-sm tabular-nums">
+                盈餘 {{ financePreview.profit >= 0 ? '+' : '−' }}{{ money(Math.abs(financePreview.profit)) }}
+              </span>
+              <UIcon
+                :name="showFinance ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
+                class="ml-auto"
+              />
+            </button>
+            <div
+              v-if="showFinance"
+              class="space-y-4 px-4 pb-4"
+            >
+              <div class="grid grid-cols-3 gap-4">
+                <UFormField label="人數">
+                  <UInput
+                    v-model="form.headcount"
+                    type="number"
+                    min="0"
+                    class="w-full"
+                  />
+                </UFormField>
+                <UFormField label="收費（每人）">
+                  <UInput
+                    v-model="form.fee"
+                    type="number"
+                    min="0"
+                    class="w-full"
+                  />
+                </UFormField>
+                <UFormField label="支出">
+                  <UInput
+                    v-model="form.expense"
+                    type="number"
+                    min="0"
+                    class="w-full"
+                  />
+                </UFormField>
+              </div>
+              <div class="bg-elevated/50 grid grid-cols-2 gap-4 rounded-lg p-4">
+                <div>
+                  <div class="text-muted text-xs">
+                    收入（人數×收費）
+                  </div>
+                  <div class="font-mono text-lg font-semibold tabular-nums">
+                    {{ money(financePreview.income) }}
+                  </div>
+                </div>
+                <div>
+                  <div class="text-muted text-xs">
+                    盈餘（收入−支出）
+                  </div>
+                  <div
+                    class="font-mono text-lg font-semibold tabular-nums"
+                    :class="financePreview.profit >= 0 ? 'text-success' : 'text-error'"
+                  >
+                    {{ money(financePreview.profit) }}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
           <div class="flex items-center justify-between pt-2">
             <UButton
