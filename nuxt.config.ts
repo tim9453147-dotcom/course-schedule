@@ -67,7 +67,9 @@ export default defineNuxtConfig({
     //   NUXT_LINE_CHANNEL_ACCESS_TOKEN（push 訊息）
     //   NUXT_LINE_CHANNEL_SECRET（webhook 簽章驗證）
     lineChannelAccessToken: '',
-    lineChannelSecret: ''
+    lineChannelSecret: '',
+    // 每日課表異動彙整通知端點的 Bearer 金鑰（見 specs/0025）：NUXT_NOTIFY_CRON_SECRET
+    notifyCronSecret: ''
   },
 
   compatibilityDate: '2025-01-15',

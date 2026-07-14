@@ -83,7 +83,7 @@ logScheduleChange(event, { entityType, entityId, action, classroom, summary })
 - `server/api/events/index.post.ts`（created）
 - `server/api/events/[id].put.ts`（updated）
 - `server/api/events/[id].delete.ts`（deleted）
-- `server/api/events/import.post.ts`（每筆匯入各記一筆 created）
+- `server/api/events/import.post.ts`（記一筆彙整型 created：`entityId=0`、summary=`批次匯入 N 筆活動`；`entityId=0` 於去重時視為各自獨立、不與其他列合併）
 
 ## LINE 串接
 

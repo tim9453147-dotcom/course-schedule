@@ -1,0 +1,19 @@
+name: 每日課表異動通知
+
+# 每天 00:00 UTC（= 台灣 08:00）呼叫網站的彙整通知端點；也可手動觸發測試。
+# 需在 repo Settings → Secrets 設定 NOTIFY_CRON_SECRET（值同 Cloudflare Pages 的 NUXT_NOTIFY_CRON_SECRET）。
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 呼叫每日彙整通知端點
+        run: |
+          curl -fsS -X POST \
+            "https://course-schedule-2689336.pages.dev/api/notifications/daily-digest" \
+            -H "Authorization: Bearer ${{ secrets.NOTIFY_CRON_SECRET }}" \
+            -w "\nHTTP %{http_code}\n"
