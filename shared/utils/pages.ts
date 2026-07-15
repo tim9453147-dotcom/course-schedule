@@ -25,7 +25,7 @@ export const PAGES: PageDef[] = [
   { key: 'calendar', label: '課表', path: '/', access: 'public', icon: 'i-lucide-calendar-days' },
   { key: 'equipment', label: '器材室管理', path: '/equipment', access: 'public', icon: 'i-lucide-package' },
   { key: 'crm', label: '名單', path: '/crm', access: 'private', icon: 'i-lucide-contact' },
-  // 家聚點（spec 0021）：一頁 /gathering、三分頁、各自授權。
+  // 家聚點（spec 0021）：一頁 /gathering、兩分頁（活動紀錄、食譜列表），各自授權；收支已併入活動紀錄明細。
   // gathering 需排在最前：pageByPath('/gathering') 取第一筆（public）→ 路由人人可進。
   { key: 'gathering', label: '家聚點', path: '/gathering', access: 'public', icon: 'i-lucide-home' },
   { key: 'gathering-finance', label: '家聚點·收支', path: '/gathering', access: 'private', icon: 'i-lucide-home', nav: false },
