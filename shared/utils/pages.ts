@@ -28,7 +28,6 @@ export const PAGES: PageDef[] = [
   // 家聚點（spec 0021）：一頁 /gathering、兩分頁（活動紀錄、食譜列表），各自授權；收支已併入活動紀錄明細。
   // gathering 需排在最前：pageByPath('/gathering') 取第一筆（public）→ 路由人人可進。
   { key: 'gathering', label: '家聚點', path: '/gathering', access: 'public', icon: 'i-lucide-home' },
-  { key: 'gathering-finance', label: '家聚點·收支', path: '/gathering', access: 'private', icon: 'i-lucide-home', nav: false },
   { key: 'gathering-recipe', label: '家聚點·食譜', path: '/gathering', access: 'private', icon: 'i-lucide-home', nav: false }
 ]
 

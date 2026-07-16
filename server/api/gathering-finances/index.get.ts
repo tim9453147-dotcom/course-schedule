@@ -1,10 +1,10 @@
 import { asc, desc, eq } from 'drizzle-orm'
 import { gatherings, gatheringFinances } from '../../db/schema'
 
-// 收支列表（需 gathering-finance 權限）。左連接活動，全部活動都列出；
+// 收支列表（需 gathering 權限）。左連接活動，全部活動都列出；
 // 未填收支者財務欄位為 null。順帶算出 income / profit 供列表顯示 +/−。
 export default defineEventHandler(async (event) => {
-  await requirePage(event, 'gathering-finance')
+  await requirePage(event, 'gathering')
 
   const db = useDb(event)
   const rows = await db

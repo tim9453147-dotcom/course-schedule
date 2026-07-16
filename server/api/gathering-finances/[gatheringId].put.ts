@@ -1,9 +1,9 @@
 import { eq } from 'drizzle-orm'
 import { gatherings, gatheringFinances } from '../../db/schema'
 
-// upsert 一場活動的收支（需 gathering-finance 權限）。回傳含 income/profit 的合併視圖。
+// upsert 一場活動的收支（需 gathering 權限）。回傳含 income/profit 的合併視圖。
 export default defineEventHandler(async (event) => {
-  await requirePage(event, 'gathering-finance')
+  await requirePage(event, 'gathering')
 
   const gatheringId = Number(getRouterParam(event, 'gatheringId'))
   if (!Number.isInteger(gatheringId)) {
