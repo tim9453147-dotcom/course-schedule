@@ -2,18 +2,17 @@
 // 家聚點「活動紀錄」分頁（spec 0021）。人人可看；有 gathering 權才能編輯。
 // 操鍋/助手/採買以 UInputMenu 提供名單建議＋可自由輸入（存人名文字）。
 // 明細中點食譜名稱可展開該食譜的食材／作法（需有食譜讀取權才抓得到）。
+// 有 gathering 權才能編輯活動與收支（收支權限已併入 gathering）。
 const canEdit = useCanEdit('gathering')
-// 收支：有此權限才顯示與抓取。無權限者不發此請求，後端亦守門。
-const canFinance = useCanEdit('gathering-finance')
 const notify = useNotify()
 const confirm = useConfirm()
 
 const { data: gatherings, refresh } = await useFetch<Gathering[]>('/api/gatherings', { deep: true })
 
-// 收支列表：僅 canFinance 時抓（immediate 依權限），建 id→財務 map 供清單/明細取值。
+// 收支列表：僅 canEdit 時抓（immediate 依權限），建 id→財務 map 供清單/明細取值。
 const { data: finances, refresh: refreshFinances } = await useFetch<GatheringFinanceRow[]>(
   '/api/gathering-finances',
-  { deep: true, default: () => [], immediate: canFinance.value }
+  { deep: true, default: () => [], immediate: canEdit.value }
 )
 const financeById = computed(() => {
   const m = new Map<number, GatheringFinanceRow>()
@@ -141,29 +140,22 @@ function openRow(g: Gathering) {
 const selectedRecipe = computed(() => recipeById(form.recipeId))
 
 async function save() {
-  // 活動欄位（含名稱／日期驗證）只在有 gathering 權、要寫活動時才需要；
-  // finance-only 使用者只存收支，既有活動的 name/date 早已合法，不必再驗。
-  if (canEdit.value) {
-    if (!form.name.trim()) return notify.error('請輸入活動名稱')
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(form.date)) return notify.error('請選擇日期')
-  }
+  // 有 gathering 權才會進到 edit 模式並按儲存；活動欄位驗證後先存活動、再補收支。
+  if (!form.name.trim()) return notify.error('請輸入活動名稱')
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(form.date)) return notify.error('請選擇日期')
   saving.value = true
   try {
-    // 先存活動、後補收支：兩者各自依權限判斷是否要送出，finance-only 使用者
-    // 完全不打 /api/gatherings（該路由需 gathering 權，打了會 403）。
-    if (canEdit.value) {
-      const url = editingId.value ? `/api/gatherings/${editingId.value}` : '/api/gatherings'
-      await $fetch(url, { method: editingId.value ? 'PUT' : 'POST', body: { ...form } })
-    }
-    // 僅編輯既有活動且有收支權時才寫收支（新增時無收支區塊）
-    if (canFinance.value && editingId.value) {
+    const url = editingId.value ? `/api/gatherings/${editingId.value}` : '/api/gatherings'
+    await $fetch(url, { method: editingId.value ? 'PUT' : 'POST', body: { ...form } })
+    // 僅編輯既有活動時才寫收支（新增時無收支區塊）
+    if (editingId.value) {
       await $fetch(`/api/gathering-finances/${editingId.value}`, {
         method: 'PUT',
         body: { headcount: toNull(form.headcount), fee: toNull(form.fee), expense: toNull(form.expense) }
       })
     }
     open.value = false
-    await Promise.all([refresh(), canFinance.value ? refreshFinances() : Promise.resolve()])
+    await Promise.all([refresh(), refreshFinances()])
     notify.success(editingId.value ? '已更新活動' : '已新增活動')
   } catch (err: unknown) {
     const msg = (err as { statusMessage?: string })?.statusMessage ?? '請檢查欄位內容'
@@ -225,7 +217,7 @@ async function remove() {
           class="text-muted ml-auto text-sm"
         >{{ row.g.location }}</span>
         <span
-          v-if="canFinance && row.fin"
+          v-if="canEdit && row.fin"
           class="font-mono font-semibold tabular-nums"
           :class="[row.fin.profit >= 0 ? 'text-success' : 'text-error', row.g.location ? '' : 'ml-auto']"
         >
@@ -430,7 +422,7 @@ async function remove() {
           </UFormField>
 
           <div
-            v-if="canFinance && editingId"
+            v-if="canEdit && editingId"
             class="border-default rounded-lg border"
           >
             <button
@@ -461,7 +453,7 @@ async function remove() {
                     v-model="form.headcount"
                     type="number"
                     min="0"
-                    :disabled="!canFinance"
+                    :disabled="!canEdit"
                     class="w-full"
                   />
                 </UFormField>
@@ -470,7 +462,7 @@ async function remove() {
                     v-model="form.fee"
                     type="number"
                     min="0"
-                    :disabled="!canFinance"
+                    :disabled="!canEdit"
                     class="w-full"
                   />
                 </UFormField>
@@ -479,7 +471,7 @@ async function remove() {
                     v-model="form.expense"
                     type="number"
                     min="0"
-                    :disabled="!canFinance"
+                    :disabled="!canEdit"
                     class="w-full"
                   />
                 </UFormField>
@@ -527,7 +519,7 @@ async function remove() {
                 {{ canEdit ? '取消' : '關閉' }}
               </UButton>
               <UButton
-                v-if="canEdit || (canFinance && editingId)"
+                v-if="canEdit"
                 :loading="saving"
                 @click="save"
               >
