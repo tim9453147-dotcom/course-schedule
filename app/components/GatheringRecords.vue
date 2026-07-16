@@ -389,15 +389,6 @@ async function remove() {
                 />
               </UFormField>
             </div>
-            <a
-              v-if="!canEdit && form.mapUrl"
-              :href="form.mapUrl"
-              target="_blank"
-              rel="noopener"
-              class="text-primary inline-flex items-center gap-1 text-sm"
-            >
-              <UIcon name="i-lucide-map-pin" />開啟地圖
-            </a>
 
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <UFormField label="操鍋">
