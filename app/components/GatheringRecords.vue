@@ -89,6 +89,12 @@ function openPicker(e: MouseEvent) {
 /* ---------- 明細 modal ---------- */
 const open = ref(false)
 const editingId = ref<number | null>(null)
+// modal 模式：view=精簡檢視、edit=完整表單。無 gathering 權者只會停在 view。
+const mode = ref<'view' | 'edit'>('view')
+const modalTitle = computed(() => {
+  if (mode.value === 'view') return '活動明細'
+  return editingId.value ? '編輯活動' : '新增活動'
+})
 const saving = ref(false)
 const showRecipe = ref(false) // 明細內是否展開食譜食材/作法
 // 新增時的預設：活動名稱「家聚」、地點「吾心家」、時段 19:00–21:00（編輯既有活動時由 openRow 覆寫）
@@ -118,6 +124,7 @@ function openCreate() {
   Object.assign(form, blank())
   showRecipe.value = false
   showFinance.value = false
+  mode.value = 'edit'
   open.value = true
 }
 function openRow(g: Gathering) {
@@ -134,6 +141,7 @@ function openRow(g: Gathering) {
   })
   showRecipe.value = false
   showFinance.value = false
+  mode.value = 'view'
   open.value = true
 }
 
@@ -228,272 +236,352 @@ async function remove() {
 
     <UModal
       :open="open"
-      :title="editingId ? (canEdit ? '編輯活動' : '活動明細') : '新增活動'"
+      :title="modalTitle"
       :ui="{ content: 'max-w-2xl' }"
       @update:open="open = $event"
     >
       <template #body>
         <div class="space-y-4">
-          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <UFormField label="活動名稱">
-              <!-- focusin 冒泡自內層 input：聚焦時整段選取預設值，打字即取代，避免黏字 -->
-              <div
-                class="w-full"
-                @focusin="selectAllOnFocus"
+          <div
+            v-if="mode === 'view'"
+            class="space-y-4"
+          >
+            <div>
+              <div class="text-muted text-xs">
+                時間
+              </div>
+              <div class="font-medium">
+                <span class="font-mono tabular-nums">{{ form.date }}</span>
+                <span
+                  v-if="form.startTime || form.endTime"
+                  class="text-muted ml-2 font-mono tabular-nums"
+                >{{ form.startTime }}<template v-if="form.endTime">–{{ form.endTime }}</template></span>
+              </div>
+            </div>
+            <div v-if="form.location">
+              <div class="text-muted text-xs">
+                地點
+              </div>
+              <div class="font-medium">
+                {{ form.location }}
+              </div>
+              <a
+                v-if="form.mapUrl"
+                :href="form.mapUrl"
+                target="_blank"
+                rel="noopener"
+                class="text-primary inline-flex items-center gap-1 text-sm"
               >
+                <UIcon name="i-lucide-map-pin" />開啟地圖
+              </a>
+            </div>
+            <div v-if="form.process">
+              <div class="text-muted text-xs">
+                流程
+              </div>
+              <p class="whitespace-pre-wrap">
+                {{ form.process }}
+              </p>
+            </div>
+            <div v-if="selectedRecipe">
+              <div class="text-muted text-xs">
+                料理
+              </div>
+              <UButton
+                variant="soft"
+                color="primary"
+                icon="i-lucide-chef-hat"
+                size="sm"
+                @click="showRecipe = !showRecipe"
+              >
+                {{ selectedRecipe.name }}
+                <UIcon :name="showRecipe ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'" />
+              </UButton>
+              <div
+                v-if="showRecipe"
+                class="bg-elevated/50 mt-2 space-y-2 rounded-lg p-3 text-sm"
+              >
+                <div>
+                  <span class="font-semibold">食材：</span>
+                  <p class="whitespace-pre-wrap">
+                    {{ selectedRecipe.ingredients || '—' }}
+                  </p>
+                </div>
+                <div>
+                  <span class="font-semibold">作法：</span>
+                  <p class="whitespace-pre-wrap">
+                    {{ selectedRecipe.steps || '—' }}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div
+            v-if="mode === 'edit'"
+            class="space-y-4"
+          >
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <UFormField label="活動名稱">
+                <!-- focusin 冒泡自內層 input：聚焦時整段選取預設值，打字即取代，避免黏字 -->
+                <div
+                  class="w-full"
+                  @focusin="selectAllOnFocus"
+                >
+                  <UInputMenu
+                    v-model="form.name"
+                    v-model:open="nameMenuOpen"
+                    :items="nameItems"
+                    create-item
+                    :disabled="!canEdit"
+                    placeholder="選擇或輸入"
+                    class="w-full"
+                    @create="onCreateName"
+                  />
+                </div>
+              </UFormField>
+              <UFormField label="日期">
+                <UInput
+                  v-model="form.date"
+                  type="date"
+                  :disabled="!canEdit"
+                  class="w-full"
+                  @click="openPicker"
+                />
+              </UFormField>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+              <UFormField label="開始時間">
+                <UInput
+                  v-model="form.startTime"
+                  type="time"
+                  :disabled="!canEdit"
+                  class="w-full"
+                  @click="openPicker"
+                />
+              </UFormField>
+              <UFormField label="結束時間">
+                <UInput
+                  v-model="form.endTime"
+                  type="time"
+                  :disabled="!canEdit"
+                  class="w-full"
+                  @click="openPicker"
+                />
+              </UFormField>
+            </div>
+
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <UFormField label="地點">
+                <UInput
+                  v-model="form.location"
+                  :disabled="!canEdit"
+                  class="w-full"
+                />
+              </UFormField>
+              <UFormField label="地圖連結">
+                <UInput
+                  v-model="form.mapUrl"
+                  :disabled="!canEdit"
+                  placeholder="https://maps.app.goo.gl/…"
+                  class="w-full"
+                />
+              </UFormField>
+            </div>
+            <a
+              v-if="!canEdit && form.mapUrl"
+              :href="form.mapUrl"
+              target="_blank"
+              rel="noopener"
+              class="text-primary inline-flex items-center gap-1 text-sm"
+            >
+              <UIcon name="i-lucide-map-pin" />開啟地圖
+            </a>
+
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <UFormField label="操鍋">
                 <UInputMenu
-                  v-model="form.name"
-                  v-model:open="nameMenuOpen"
-                  :items="nameItems"
+                  v-model="form.cook"
+                  :items="contactNames"
                   create-item
                   :disabled="!canEdit"
                   placeholder="選擇或輸入"
                   class="w-full"
-                  @create="onCreateName"
+                  @create="(v: string) => (form.cook = v)"
                 />
-              </div>
-            </UFormField>
-            <UFormField label="日期">
-              <UInput
-                v-model="form.date"
-                type="date"
-                :disabled="!canEdit"
-                class="w-full"
-                @click="openPicker"
-              />
-            </UFormField>
-          </div>
-
-          <div class="grid grid-cols-2 gap-4">
-            <UFormField label="開始時間">
-              <UInput
-                v-model="form.startTime"
-                type="time"
-                :disabled="!canEdit"
-                class="w-full"
-                @click="openPicker"
-              />
-            </UFormField>
-            <UFormField label="結束時間">
-              <UInput
-                v-model="form.endTime"
-                type="time"
-                :disabled="!canEdit"
-                class="w-full"
-                @click="openPicker"
-              />
-            </UFormField>
-          </div>
-
-          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <UFormField label="地點">
-              <UInput
-                v-model="form.location"
-                :disabled="!canEdit"
-                class="w-full"
-              />
-            </UFormField>
-            <UFormField label="地圖連結">
-              <UInput
-                v-model="form.mapUrl"
-                :disabled="!canEdit"
-                placeholder="https://maps.app.goo.gl/…"
-                class="w-full"
-              />
-            </UFormField>
-          </div>
-          <a
-            v-if="!canEdit && form.mapUrl"
-            :href="form.mapUrl"
-            target="_blank"
-            rel="noopener"
-            class="text-primary inline-flex items-center gap-1 text-sm"
-          >
-            <UIcon name="i-lucide-map-pin" />開啟地圖
-          </a>
-
-          <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <UFormField label="操鍋">
-              <UInputMenu
-                v-model="form.cook"
-                :items="contactNames"
-                create-item
-                :disabled="!canEdit"
-                placeholder="選擇或輸入"
-                class="w-full"
-                @create="(v: string) => (form.cook = v)"
-              />
-            </UFormField>
-            <UFormField label="助手">
-              <UInputMenu
-                v-model="form.assistant"
-                :items="contactNames"
-                create-item
-                :disabled="!canEdit"
-                placeholder="選擇或輸入"
-                class="w-full"
-                @create="(v: string) => (form.assistant = v)"
-              />
-            </UFormField>
-            <UFormField label="採買">
-              <UInputMenu
-                v-model="form.shopper"
-                :items="contactNames"
-                create-item
-                :disabled="!canEdit"
-                placeholder="選擇或輸入"
-                class="w-full"
-                @create="(v: string) => (form.shopper = v)"
-              />
-            </UFormField>
-          </div>
-
-          <UFormField label="流程">
-            <UTextarea
-              v-model="form.process"
-              :disabled="!canEdit"
-              :rows="6"
-              placeholder="19:00 集合備料&#10;19:20 新朋友到…"
-              class="w-full"
-            />
-          </UFormField>
-
-          <UFormField label="參加名單">
-            <UTextarea
-              v-model="form.attendees"
-              :disabled="!canEdit"
-              :rows="6"
-              placeholder="1. 雅萍&#10;2. 浩廷…"
-              class="w-full"
-            />
-          </UFormField>
-
-          <UFormField label="食譜">
-            <div class="space-y-2">
-              <USelectMenu
-                v-if="canEdit"
-                :model-value="form.recipeId ?? undefined"
-                :items="recipeItems"
-                value-key="value"
-                label-key="label"
-                placeholder="（不引用）"
-                class="w-full"
-                @update:model-value="(v: number | null) => (form.recipeId = v)"
-              />
-              <div v-if="selectedRecipe">
-                <UButton
-                  variant="soft"
-                  color="primary"
-                  icon="i-lucide-chef-hat"
-                  size="sm"
-                  @click="showRecipe = !showRecipe"
-                >
-                  {{ selectedRecipe.name }}
-                  <UIcon :name="showRecipe ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'" />
-                </UButton>
-                <div
-                  v-if="showRecipe"
-                  class="bg-elevated/50 mt-2 space-y-2 rounded-lg p-3 text-sm"
-                >
-                  <div>
-                    <span class="font-semibold">食材：</span>
-                    <p class="whitespace-pre-wrap">
-                      {{ selectedRecipe.ingredients || '—' }}
-                    </p>
-                  </div>
-                  <div>
-                    <span class="font-semibold">作法：</span>
-                    <p class="whitespace-pre-wrap">
-                      {{ selectedRecipe.steps || '—' }}
-                    </p>
-                  </div>
-                </div>
-              </div>
+              </UFormField>
+              <UFormField label="助手">
+                <UInputMenu
+                  v-model="form.assistant"
+                  :items="contactNames"
+                  create-item
+                  :disabled="!canEdit"
+                  placeholder="選擇或輸入"
+                  class="w-full"
+                  @create="(v: string) => (form.assistant = v)"
+                />
+              </UFormField>
+              <UFormField label="採買">
+                <UInputMenu
+                  v-model="form.shopper"
+                  :items="contactNames"
+                  create-item
+                  :disabled="!canEdit"
+                  placeholder="選擇或輸入"
+                  class="w-full"
+                  @create="(v: string) => (form.shopper = v)"
+                />
+              </UFormField>
             </div>
-          </UFormField>
 
-          <UFormField label="備註">
-            <UTextarea
-              v-model="form.note"
-              :disabled="!canEdit"
-              :rows="2"
-              class="w-full"
-            />
-          </UFormField>
+            <UFormField label="流程">
+              <UTextarea
+                v-model="form.process"
+                :disabled="!canEdit"
+                :rows="6"
+                placeholder="19:00 集合備料&#10;19:20 新朋友到…"
+                class="w-full"
+              />
+            </UFormField>
 
-          <div
-            v-if="canEdit && editingId"
-            class="border-default rounded-lg border"
-          >
-            <button
-              type="button"
-              class="hover:bg-elevated/50 flex w-full items-center gap-2 px-4 py-3 text-left font-medium transition"
-              @click="showFinance = !showFinance"
-            >
-              <UIcon
-                name="i-lucide-wallet"
-                class="text-primary"
+            <UFormField label="參加名單">
+              <UTextarea
+                v-model="form.attendees"
+                :disabled="!canEdit"
+                :rows="6"
+                placeholder="1. 雅萍&#10;2. 浩廷…"
+                class="w-full"
               />
-              收支
-              <span class="text-muted ml-2 font-mono text-sm tabular-nums">
-                盈餘 {{ financePreview.profit >= 0 ? '+' : '−' }}{{ money(Math.abs(financePreview.profit)) }}
-              </span>
-              <UIcon
-                :name="showFinance ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
-                class="ml-auto"
-              />
-            </button>
-            <div
-              v-if="showFinance"
-              class="space-y-4 px-4 pb-4"
-            >
-              <div class="grid grid-cols-3 gap-4">
-                <UFormField label="人數">
-                  <UInput
-                    v-model="form.headcount"
-                    type="number"
-                    min="0"
-                    :disabled="!canEdit"
-                    class="w-full"
-                  />
-                </UFormField>
-                <UFormField label="收費（每人）">
-                  <UInput
-                    v-model="form.fee"
-                    type="number"
-                    min="0"
-                    :disabled="!canEdit"
-                    class="w-full"
-                  />
-                </UFormField>
-                <UFormField label="支出">
-                  <UInput
-                    v-model="form.expense"
-                    type="number"
-                    min="0"
-                    :disabled="!canEdit"
-                    class="w-full"
-                  />
-                </UFormField>
-              </div>
-              <div class="bg-elevated/50 grid grid-cols-2 gap-4 rounded-lg p-4">
-                <div>
-                  <div class="text-muted text-xs">
-                    收入（人數×收費）
-                  </div>
-                  <div class="font-mono text-lg font-semibold tabular-nums">
-                    {{ money(financePreview.income) }}
+            </UFormField>
+
+            <UFormField label="食譜">
+              <div class="space-y-2">
+                <USelectMenu
+                  v-if="canEdit"
+                  :model-value="form.recipeId ?? undefined"
+                  :items="recipeItems"
+                  value-key="value"
+                  label-key="label"
+                  placeholder="（不引用）"
+                  class="w-full"
+                  @update:model-value="(v: number | null) => (form.recipeId = v)"
+                />
+                <div v-if="selectedRecipe">
+                  <UButton
+                    variant="soft"
+                    color="primary"
+                    icon="i-lucide-chef-hat"
+                    size="sm"
+                    @click="showRecipe = !showRecipe"
+                  >
+                    {{ selectedRecipe.name }}
+                    <UIcon :name="showRecipe ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'" />
+                  </UButton>
+                  <div
+                    v-if="showRecipe"
+                    class="bg-elevated/50 mt-2 space-y-2 rounded-lg p-3 text-sm"
+                  >
+                    <div>
+                      <span class="font-semibold">食材：</span>
+                      <p class="whitespace-pre-wrap">
+                        {{ selectedRecipe.ingredients || '—' }}
+                      </p>
+                    </div>
+                    <div>
+                      <span class="font-semibold">作法：</span>
+                      <p class="whitespace-pre-wrap">
+                        {{ selectedRecipe.steps || '—' }}
+                      </p>
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <div class="text-muted text-xs">
-                    盈餘（收入−支出）
+              </div>
+            </UFormField>
+
+            <UFormField label="備註">
+              <UTextarea
+                v-model="form.note"
+                :disabled="!canEdit"
+                :rows="2"
+                class="w-full"
+              />
+            </UFormField>
+
+            <div
+              v-if="canEdit && editingId"
+              class="border-default rounded-lg border"
+            >
+              <button
+                type="button"
+                class="hover:bg-elevated/50 flex w-full items-center gap-2 px-4 py-3 text-left font-medium transition"
+                @click="showFinance = !showFinance"
+              >
+                <UIcon
+                  name="i-lucide-wallet"
+                  class="text-primary"
+                />
+                收支
+                <span class="text-muted ml-2 font-mono text-sm tabular-nums">
+                  盈餘 {{ financePreview.profit >= 0 ? '+' : '−' }}{{ money(Math.abs(financePreview.profit)) }}
+                </span>
+                <UIcon
+                  :name="showFinance ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
+                  class="ml-auto"
+                />
+              </button>
+              <div
+                v-if="showFinance"
+                class="space-y-4 px-4 pb-4"
+              >
+                <div class="grid grid-cols-3 gap-4">
+                  <UFormField label="人數">
+                    <UInput
+                      v-model="form.headcount"
+                      type="number"
+                      min="0"
+                      :disabled="!canEdit"
+                      class="w-full"
+                    />
+                  </UFormField>
+                  <UFormField label="收費（每人）">
+                    <UInput
+                      v-model="form.fee"
+                      type="number"
+                      min="0"
+                      :disabled="!canEdit"
+                      class="w-full"
+                    />
+                  </UFormField>
+                  <UFormField label="支出">
+                    <UInput
+                      v-model="form.expense"
+                      type="number"
+                      min="0"
+                      :disabled="!canEdit"
+                      class="w-full"
+                    />
+                  </UFormField>
+                </div>
+                <div class="bg-elevated/50 grid grid-cols-2 gap-4 rounded-lg p-4">
+                  <div>
+                    <div class="text-muted text-xs">
+                      收入（人數×收費）
+                    </div>
+                    <div class="font-mono text-lg font-semibold tabular-nums">
+                      {{ money(financePreview.income) }}
+                    </div>
                   </div>
-                  <div
-                    class="font-mono text-lg font-semibold tabular-nums"
-                    :class="financePreview.profit >= 0 ? 'text-success' : 'text-error'"
-                  >
-                    {{ money(financePreview.profit) }}
+                  <div>
+                    <div class="text-muted text-xs">
+                      盈餘（收入−支出）
+                    </div>
+                    <div
+                      class="font-mono text-lg font-semibold tabular-nums"
+                      :class="financePreview.profit >= 0 ? 'text-success' : 'text-error'"
+                    >
+                      {{ money(financePreview.profit) }}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -502,7 +590,7 @@ async function remove() {
 
           <div class="flex items-center justify-between pt-2">
             <UButton
-              v-if="canEdit && editingId"
+              v-if="mode === 'edit' && canEdit && editingId"
               color="error"
               variant="ghost"
               icon="i-lucide-trash-2"
@@ -516,10 +604,17 @@ async function remove() {
                 variant="ghost"
                 @click="open = false"
               >
-                {{ canEdit ? '取消' : '關閉' }}
+                {{ mode === 'edit' ? '取消' : '關閉' }}
               </UButton>
               <UButton
-                v-if="canEdit"
+                v-if="mode === 'view' && canEdit"
+                icon="i-lucide-pencil"
+                @click="mode = 'edit'"
+              >
+                編輯
+              </UButton>
+              <UButton
+                v-if="mode === 'edit'"
                 :loading="saving"
                 @click="save"
               >
