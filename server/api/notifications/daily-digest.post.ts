@@ -2,10 +2,11 @@ import { eq, isNull, inArray } from 'drizzle-orm'
 import { scheduleChanges, settings, notificationLogs } from '../../db/schema'
 import type { ScheduleChange } from '../../db/schema'
 import { useDb } from '../../utils/db'
+import type { TodayInfo, TodayItem } from '../../utils/todaySchedule'
 
-// 每日課表異動彙整通知（見 specs/0025）。
-// GitHub Actions cron 每天 08:00（台灣）帶 Bearer 金鑰呼叫 → 撈未通知的異動 → 去重 → push 到 LINE 群組。
-// 本端點需公開讓 cron 打得到，靠 Bearer 金鑰把關，不走使用者 session。
+// 每日通知（見 specs/0025、0026）。
+// GitHub Actions cron 每天 08:00（台灣）帶 Bearer 金鑰呼叫 → 組「今日課表 + 近期異動」→ push 到 LINE 群組。
+// 今天有課/活動 或 有未通知異動 才發送；本端點需公開讓 cron 打得到，靠 Bearer 金鑰把關。
 
 type Db = ReturnType<typeof useDb>
 
@@ -32,25 +33,25 @@ export default defineEventHandler(async (event) => {
   }
 
   const db = useDb(event)
+  const today = getTaiwanToday()
 
-  // 撈未通知的異動（依時間排序，id 作為次序 tie-breaker 確保去重結果穩定）
+  // 今日課表（課程 + 活動，跨教室）
+  const grouped = await collectTodaySchedule(db, today)
+  const todayCount = grouped.reduce((n, g) => n + g.items.length, 0)
+
+  // 未通知異動（依時間排序，id 作次序 tie-breaker 確保去重穩定）→ 去重取淨結果
   const pending = await db
     .select()
     .from(scheduleChanges)
     .where(isNull(scheduleChanges.notifiedAt))
     .orderBy(scheduleChanges.createdAt, scheduleChanges.id)
-
-  if (pending.length === 0) {
-    return { sent: false, reason: 'no_changes' }
-  }
-
   const survivors = resolveChanges(pending)
   const allIds = pending.map(c => c.id)
 
-  // 全部互相抵銷（期間內新增又刪除）→ 標記已通知、不發送
-  if (survivors.length === 0) {
-    await markNotified(db, allIds)
-    return { sent: false, reason: 'no_effective_changes' }
+  // 今天沒課/活動、也沒有效異動 → 不發送（把已撈出的異動列標記，避免抵銷列殘留）
+  if (todayCount === 0 && survivors.length === 0) {
+    if (allIds.length > 0) await markNotified(db, allIds)
+    return { sent: false, reason: 'no_changes' }
   }
 
   // 檢查設定：群組 ID + access token
@@ -61,7 +62,7 @@ export default defineEventHandler(async (event) => {
     return { sent: false, reason: 'not_configured' }
   }
 
-  const text = buildDigestMessage(survivors)
+  const text = buildMessage(grouped, todayCount, survivors, today)
   const result = await linePush(config.lineChannelAccessToken, groupId, [{ type: 'text', text }])
 
   await db.insert(notificationLogs).values({
@@ -76,9 +77,30 @@ export default defineEventHandler(async (event) => {
     return { sent: false, reason: 'send_failed', error: result.error }
   }
 
-  await markNotified(db, allIds)
-  return { sent: true, count: survivors.length }
+  if (allIds.length > 0) await markNotified(db, allIds)
+  return { sent: true, todayCount, changeCount: survivors.length }
 })
+
+// 組合整則訊息：今日課表區塊 +（有異動時）近期異動區塊
+function buildMessage(
+  grouped: { classroom: string, items: TodayItem[] }[],
+  todayCount: number,
+  survivors: Survivor[],
+  today: TodayInfo
+): string {
+  const parts: string[] = []
+  if (todayCount > 0) {
+    parts.push(buildTodayScheduleBlock(grouped, today))
+  }
+  if (survivors.length > 0) {
+    const body = buildChangesBody(survivors)
+    // 有今日課表 → 異動接在分隔線下作為子區塊；否則沿用 0025 的獨立標頭
+    parts.push(todayCount > 0
+      ? `━━━━━━━━━━\n🔔 近期異動\n\n${body}`
+      : `📅 課表異動通知（${today.month}/${today.day}）\n\n${body}`)
+  }
+  return parts.join('\n\n')
+}
 
 // 依 (entityType, entityId) 去重取淨結果；entityId=0（如批次匯入）視為各自獨立、不合併。
 function resolveChanges(rows: ScheduleChange[]): Survivor[] {
@@ -107,25 +129,20 @@ function resolveChanges(rows: ScheduleChange[]): Survivor[] {
   return out
 }
 
-// 依教室分組組成文字訊息
-function buildDigestMessage(items: Survivor[]): string {
+// 異動內容（依教室分組，無標頭），供 buildMessage 併入
+function buildChangesBody(items: Survivor[]): string {
   const byRoom = new Map<string, Survivor[]>()
   for (const it of items) {
     const arr = byRoom.get(it.classroom)
     if (arr) arr.push(it)
     else byRoom.set(it.classroom, [it])
   }
-
-  // 以台灣時間（UTC+8）取當日日期
-  const tw = new Date(Date.now() + 8 * 3600 * 1000)
-  const header = `📅 課表異動通知（${tw.getUTCMonth() + 1}/${tw.getUTCDate()}）`
-
   const blocks: string[] = []
   for (const [room, arr] of byRoom) {
     const lines = arr.map(it => `${ACTION_EMOJI[it.action] ?? '•'} ${it.summary}`).join('\n')
     blocks.push(`【${room}】\n${lines}`)
   }
-  return `${header}\n\n${blocks.join('\n\n')}`
+  return blocks.join('\n\n')
 }
 
 async function markNotified(db: Db, ids: number[]): Promise<void> {
