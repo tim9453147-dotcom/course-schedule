@@ -57,11 +57,11 @@ export function leadScore(c: LeadScoreInput, today: string): number {
   return score
 }
 
-export type LeadReason =
-  | { kind: 'overdue', label: string, days: number }
-  | { kind: 'due', label: string }
-  | { kind: 'pending', label: string }
-  | null
+export type LeadReason
+  = | { kind: 'overdue', label: string, days: number }
+    | { kind: 'due', label: string }
+    | { kind: 'pending', label: string }
+    | null
 
 // 主要理由（畫面主 chip 用）。優先序：逾期 → 今天到期 → 待啟動。
 export function topReason(c: LeadScoreInput, today: string): LeadReason {
