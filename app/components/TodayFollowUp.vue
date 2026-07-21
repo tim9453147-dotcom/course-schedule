@@ -16,18 +16,25 @@ const list = computed(() =>
     .sort((a, b) => b.score - a.score)
 )
 
-function reasonColor(kind?: string) {
+function reasonColor(kind?: NonNullable<LeadReason>['kind']) {
   return kind === 'overdue' ? 'error' : kind === 'due' ? 'warning' : 'neutral'
 }
 
+// 進行中的「今天已跟進」id：防止連點重複寫入空白跟進紀錄
+const marking = ref(new Set<number>())
+
 // 勾「今天已跟進」＝新增一筆今天的跟進紀錄；後端回算 lastFollowUp/nextFollowUp，重新整理後該人離開清單。
 async function markDone(c: Contact) {
+  if (marking.value.has(c.id)) return
+  marking.value.add(c.id)
   try {
     await $fetch(`/api/contacts/${c.id}/logs`, { method: 'POST', body: { date: today, content: '' } })
     await refreshContacts()
   } catch {
     notify.error('更新失敗')
     await refreshContacts()
+  } finally {
+    marking.value.delete(c.id)
   }
 }
 
@@ -103,6 +110,8 @@ function onMetaSaved(updated: Contact) {
             color="primary"
             variant="soft"
             size="sm"
+            :loading="marking.has(c.id)"
+            :disabled="marking.has(c.id)"
             @click="markDone(c)"
           >
             <span class="hidden sm:inline">今天已跟進</span>

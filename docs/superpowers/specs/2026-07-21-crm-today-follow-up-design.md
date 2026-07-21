@@ -93,8 +93,7 @@
 
 - 名單為 0 或今日清單為 0 → 顯示空狀態，不報錯。
 - `nextFollowUp`／`lastFollowUp` 為空、`followUpFreq` 為「暫停」→ 依入列規則自然排除。
-- 勾「今天已跟進」失敗 → 沿用 ContactList 既有模式：`notify.error` + `refresh` 還原。
-- 樂觀更新：勾完即時把該卡移出清單，API 失敗再還原。
+- 勾「今天已跟進」→ 悲觀更新：等 `POST /logs` 成功後 `refresh`，該人才離開清單；失敗沿用 ContactList 既有模式 `notify.error` + `refresh` 還原。連點以進行中 id 集合擋掉，避免重複寫入空白紀錄。
 
 ## 測試 / 驗證
 
