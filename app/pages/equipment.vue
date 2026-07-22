@@ -94,8 +94,15 @@ async function removeEquip(e: Equipment) {
 const rentalOpen = ref(false)
 const rentalEditingId = ref<number | null>(null)
 const rentalSaving = ref(false)
-const rentalForm = reactive({
-  equipmentId: null as number | null,
+const rentalForm = reactive<{
+  equipmentId?: number
+  borrower: string
+  qty: number
+  borrowDate: string
+  dueDate: string
+  note: string
+}>({
+  equipmentId: undefined,
   borrower: '',
   qty: 1,
   borrowDate: '',
@@ -106,7 +113,7 @@ const rentalForm = reactive({
 function openBorrow(e?: Equipment) {
   rentalEditingId.value = null
   Object.assign(rentalForm, {
-    equipmentId: e?.id ?? (myEquip.value[0]?.id ?? null),
+    equipmentId: e?.id ?? (myEquip.value[0]?.id ?? undefined),
     borrower: '',
     qty: 1,
     borrowDate: todayStr(),

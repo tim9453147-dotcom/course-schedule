@@ -13,6 +13,7 @@ const { data: items, refresh } = useFetch<Prospect[]>('/api/prospects', {
 })
 // 加入視窗要用的總名單清單
 const { data: contactsList } = useFetch<Contact[]>('/api/contacts', {
+  key: 'global-contacts',
   deep: true,
   lazy: true,
   default: () => []

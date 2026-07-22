@@ -5,7 +5,7 @@ const confirm = useConfirm()
 
 // deep: true → 名單清單為深層響應式，inline 樂觀更新（c.xxx=value、Object.assign）
 // 才會即時反映到畫面。Nuxt 4 的 useFetch 預設是 shallow，不加會「送了 API 但畫面不動」。
-const { data: contacts, refresh: refreshContacts } = await useFetch<Contact[]>('/api/contacts', { deep: true })
+const { data: contacts, refresh: refreshContacts } = await useFetch<Contact[]>('/api/contacts', { key: 'global-contacts', deep: true })
 // 進度階段（每位使用者各自管理；後端首次為空時會種子預設）
 const { data: stages, refresh: refreshStages } = await useFetch<ContactStage[]>('/api/contact-stages', { deep: true })
 

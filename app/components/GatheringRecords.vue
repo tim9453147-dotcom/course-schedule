@@ -33,11 +33,11 @@ function financeOf(id: number) {
 const gatheringRows = computed(() => (gatherings.value ?? []).map(g => ({ g, fin: financeOf(g.id) })))
 
 // 名單（操鍋/助手/採買下拉建議）：best-effort，無 crm 權時為空，退回自由輸入。
-const { data: contacts } = await useFetch<Contact[]>('/api/contacts', { default: () => [] })
+const { data: contacts } = await useFetch<Contact[]>('/api/contacts', { key: 'global-contacts', default: () => [] })
 const contactNames = computed(() => Array.from(new Set((contacts.value ?? []).map(c => c.name))))
 
 // 食譜（引用用）：best-effort，無食譜權時為空。
-const { data: recipes } = await useFetch<Recipe[]>('/api/recipes', { default: () => [] })
+const { data: recipes } = await useFetch<Recipe[]>('/api/recipes', { key: 'global-recipes', default: () => [] })
 const recipeItems = computed(() => (recipes.value ?? []).map(r => ({ label: r.name, value: r.id })))
 function recipeById(id: number | null) {
   return id == null ? null : (recipes.value ?? []).find(r => r.id === id) ?? null

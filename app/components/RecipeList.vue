@@ -4,7 +4,7 @@
 const notify = useNotify()
 const confirm = useConfirm()
 
-const { data: recipes, refresh } = await useFetch<Recipe[]>('/api/recipes', { deep: true })
+const { data: recipes, refresh } = await useFetch<Recipe[]>('/api/recipes', { key: 'global-recipes', deep: true })
 
 /* ---------- 明細 modal ---------- */
 const open = ref(false)

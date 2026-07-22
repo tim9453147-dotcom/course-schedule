@@ -1,4 +1,4 @@
-import { sqliteTable, integer, text } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, integer, text, index } from 'drizzle-orm/sqlite-core'
 
 // 課程資料表
 export const courses = sqliteTable('courses', {
@@ -100,7 +100,9 @@ export const rentals = sqliteTable('rentals', {
   createdAt: integer('created_at')
     .notNull()
     .$defaultFn(() => Math.floor(Date.now() / 1000))
-})
+}, (table) => ({
+  equipmentIdIdx: index('rentals_equipment_id_idx').on(table.equipmentId)
+}))
 
 // 使用者資料表（多帳號＋頁面權限＋申請審核）
 // 超級管理員不在此表，靠環境變數帳號登入特判。
@@ -169,7 +171,10 @@ export const contacts = sqliteTable('contacts', {
   updatedAt: integer('updated_at')
     .notNull()
     .$defaultFn(() => Math.floor(Date.now() / 1000))
-})
+}, (table) => ({
+  userIdIdx: index('contacts_user_id_idx').on(table.userId),
+  nextFollowUpIdx: index('contacts_next_follow_up_idx').on(table.nextFollowUp)
+}))
 
 // 進度階段定義（每位使用者各自一份，可自行新增／改名／排序／刪除）
 // 擁有者規則同 contacts：一般使用者為 users.id，超級管理員為 NULL。
@@ -183,7 +188,9 @@ export const contactStages = sqliteTable('contact_stages', {
   createdAt: integer('created_at')
     .notNull()
     .$defaultFn(() => Math.floor(Date.now() / 1000))
-})
+}, (table) => ({
+  userIdIdx: index('contact_stages_user_id_idx').on(table.userId)
+}))
 
 // 名單明細「誰的朋友／開發夥伴」共用人名選項（每位使用者各自一份，可增/刪）。
 // 擁有者規則同 contacts/contact_stages：一般使用者 users.id，超級管理員 NULL。
@@ -195,7 +202,9 @@ export const contactOptions = sqliteTable('contact_options', {
   createdAt: integer('created_at')
     .notNull()
     .$defaultFn(() => Math.floor(Date.now() / 1000))
-})
+}, (table) => ({
+  userIdIdx: index('contact_options_user_id_idx').on(table.userId)
+}))
 
 // 跟進紀錄（時間軸，一筆名單對多筆紀錄）
 export const followUpLogs = sqliteTable('follow_up_logs', {
@@ -210,7 +219,9 @@ export const followUpLogs = sqliteTable('follow_up_logs', {
   createdAt: integer('created_at')
     .notNull()
     .$defaultFn(() => Math.floor(Date.now() / 1000))
-})
+}, (table) => ({
+  contactIdIdx: index('follow_up_logs_contact_id_idx').on(table.contactId)
+}))
 
 // 每日任務（個人名單表）：四個區塊共用一張表，以 section 區分
 //   develop=開發名單 / reserve=預備名單 / five=五人名單 / network=織網表
@@ -234,7 +245,10 @@ export const prospects = sqliteTable('prospects', {
   createdAt: integer('created_at')
     .notNull()
     .$defaultFn(() => Math.floor(Date.now() / 1000))
-})
+}, (table) => ({
+  userIdIdx: index('prospects_user_id_idx').on(table.userId),
+  contactIdIdx: index('prospects_contact_id_idx').on(table.contactId)
+}))
 
 // 家聚點 — 活動核心＋紀錄（spec 0021）。共用（無 userId）、不分教室。
 // 一場家聚一筆；收支與活動紀錄兩個分頁都指向同一筆，只是顯示不同欄位。
@@ -323,7 +337,9 @@ export const scheduleChanges = sqliteTable('schedule_changes', {
     .notNull()
     .$defaultFn(() => Math.floor(Date.now() / 1000)),
   notifiedAt: integer('notified_at')
-})
+}, (table) => ({
+  notifiedAtIdx: index('schedule_changes_notified_at_idx').on(table.notifiedAt)
+}))
 
 // 通知發送紀錄（見 specs/0025）。每次嘗試 push 記一筆，供除錯。
 export const notificationLogs = sqliteTable('notification_logs', {

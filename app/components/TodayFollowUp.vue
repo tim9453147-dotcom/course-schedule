@@ -4,7 +4,7 @@
 const notify = useNotify()
 
 // deep: true → 樂觀更新能即時反映（比照 ContactList）。與 ContactList 共用同一 /api/contacts 快取（useFetch 依 URL 去重）。
-const { data: contacts, refresh: refreshContacts } = await useFetch<Contact[]>('/api/contacts', { deep: true })
+const { data: contacts, refresh: refreshContacts } = await useFetch<Contact[]>('/api/contacts', { key: 'global-contacts', deep: true })
 
 const today = todayStr()
 
