@@ -109,28 +109,6 @@ async function toggleStage(c: Contact, stageId: number) {
   }
 }
 
-// Done：勾＝今天跟進過（新增今天的跟進紀錄）；取消＝刪掉今天的紀錄。lastFollowUp/nextFollowUp 由後端回算。
-async function toggleDone(c: Contact, value: boolean) {
-  const today = todayStr()
-  try {
-    if (value) {
-      await $fetch(`/api/contacts/${c.id}/logs`, {
-        method: 'POST',
-        body: { date: today, content: '' }
-      })
-    } else {
-      await $fetch(`/api/contacts/${c.id}/done`, {
-        method: 'DELETE',
-        body: { date: today }
-      })
-    }
-    await refreshContacts()
-  } catch {
-    notify.error('更新失敗')
-    await refreshContacts()
-  }
-}
-
 async function changeFreq(c: Contact, value: string) {
   try {
     const updated = await $fetch<Contact>(`/api/contacts/${c.id}`, {
@@ -444,9 +422,6 @@ function onMetaSaved(updated: Contact) {
             >
               進度
             </th>
-            <th class="font-medium px-3 py-2 text-center whitespace-nowrap">
-              Done
-            </th>
             <th class="text-left font-medium px-3 py-2 whitespace-nowrap">
               跟進頻率
             </th>
@@ -529,13 +504,6 @@ function onMetaSaved(updated: Contact) {
                 />
                 {{ s.label }}
               </button>
-            </td>
-            <!-- Done：勾＝今天已跟進 -->
-            <td class="px-3 py-2 text-center">
-              <UCheckbox
-                :model-value="c.lastFollowUp === todayStr()"
-                @update:model-value="toggleDone(c, $event === true)"
-              />
             </td>
             <td class="px-3 py-2 whitespace-nowrap">
               <USelect

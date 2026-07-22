@@ -181,10 +181,6 @@ export const followUpLogSchema = z.object({
 
 export type FollowUpLogInput = z.infer<typeof followUpLogSchema>
 
-// 取消「今天已跟進」：帶入要清除的日期（由前端以當地今天送出）
-export const doneDateSchema = z.object({ date })
-
-export type DoneDateInput = z.infer<typeof doneDateSchema>
 
 // 每日任務（個人名單表）──────────────────────────────────
 // 每一列＝把某位總名單對象（contactId）放進某個區塊；姓名與延伸欄位皆來自該 contact。
