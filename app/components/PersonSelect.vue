@@ -11,6 +11,13 @@ const emit = defineEmits<{
 // UInputMenu 以字串清單呈現即可（人名唯一）；刪除時用 label 反查 id。
 const items = computed(() => props.options.map(o => o.label))
 
+// 受控展開：UInputMenu 預設不會「點一下就展開」（要打字才開），
+// 故用外層 focusin/click 主動把它打開，達成「點輸入框就直接出現下拉」。
+const open = ref(false)
+function openMenu() {
+  open.value = true
+}
+
 const value = computed({
   get: () => props.modelValue,
   set: (v: string) => emit('update:modelValue', v ?? '')
@@ -34,24 +41,32 @@ function onDelete(item: unknown) {
 </script>
 
 <template>
-  <UInputMenu
-    v-model="value"
-    :items="items"
-    create-item
-    placeholder="選擇或輸入"
+  <!-- 外層攔 focusin/click：點輸入框（或聚焦）就把下拉打開 -->
+  <div
     class="w-full"
-    @create="onCreate"
+    @focusin="openMenu"
+    @click="openMenu"
   >
-    <template #item-trailing="{ item }">
-      <UButton
-        icon="i-lucide-x"
-        color="neutral"
-        variant="ghost"
-        size="xs"
-        :aria-label="`刪除選項 ${itemLabel(item)}`"
-        @pointerdown.stop.prevent
-        @click.stop.prevent="onDelete(item)"
-      />
-    </template>
-  </UInputMenu>
+    <UInputMenu
+      v-model="value"
+      v-model:open="open"
+      :items="items"
+      create-item
+      placeholder="選擇或輸入"
+      class="w-full"
+      @create="onCreate"
+    >
+      <template #item-trailing="{ item }">
+        <UButton
+          icon="i-lucide-x"
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          :aria-label="`刪除選項 ${itemLabel(item)}`"
+          @pointerdown.stop.prevent
+          @click.stop.prevent="onDelete(item)"
+        />
+      </template>
+    </UInputMenu>
+  </div>
 </template>
