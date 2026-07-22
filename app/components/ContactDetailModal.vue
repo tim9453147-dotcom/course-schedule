@@ -22,6 +22,33 @@ const form = reactive({
 })
 const saving = ref(false)
 
+// 「誰的朋友／開發夥伴」共用人名選項（單一真相來源，兩個 PersonSelect 共用）。
+// 比照 ContactList：本元件已在頁面 Suspense 邊界內（ContactList 亦用 top-level await useFetch）。
+const { data: options, refresh: refreshOptions } = await useFetch<ContactOption[]>('/api/contact-options', { deep: true })
+
+async function addOption(label: string) {
+  try {
+    const created = await $fetch<ContactOption>('/api/contact-options', { method: 'POST', body: { label } })
+    if (!(options.value ?? []).some(o => o.id === created.id)) {
+      options.value = [...(options.value ?? []), created]
+    }
+  } catch {
+    notify.error('新增選項失敗')
+    await refreshOptions()
+  }
+}
+
+async function removeOption(id: number) {
+  const prev = options.value ?? []
+  options.value = prev.filter(o => o.id !== id) // 樂觀移除
+  try {
+    await $fetch(`/api/contact-options/${id}`, { method: 'DELETE' })
+  } catch {
+    notify.error('刪除選項失敗')
+    await refreshOptions()
+  }
+}
+
 watch(() => props.open, (o) => {
   if (o && props.contact) {
     form.friendOf = props.contact.friendOf ?? ''
@@ -74,15 +101,19 @@ async function save() {
       <div class="space-y-4">
         <div class="grid grid-cols-2 gap-4">
           <UFormField label="誰的朋友">
-            <UInput
+            <PersonSelect
               v-model="form.friendOf"
-              class="w-full"
+              :options="options ?? []"
+              @add="addOption"
+              @delete="removeOption"
             />
           </UFormField>
           <UFormField label="開發夥伴">
-            <UInput
+            <PersonSelect
               v-model="form.devPartner"
-              class="w-full"
+              :options="options ?? []"
+              @add="addOption"
+              @delete="removeOption"
             />
           </UFormField>
         </div>
