@@ -185,6 +185,18 @@ export const contactStages = sqliteTable('contact_stages', {
     .$defaultFn(() => Math.floor(Date.now() / 1000))
 })
 
+// 名單明細「誰的朋友／開發夥伴」共用人名選項（每位使用者各自一份，可增/刪）。
+// 擁有者規則同 contacts/contact_stages：一般使用者 users.id，超級管理員 NULL。
+export const contactOptions = sqliteTable('contact_options', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').references(() => users.id),
+  // 人名
+  label: text('label').notNull(),
+  createdAt: integer('created_at')
+    .notNull()
+    .$defaultFn(() => Math.floor(Date.now() / 1000))
+})
+
 // 跟進紀錄（時間軸，一筆名單對多筆紀錄）
 export const followUpLogs = sqliteTable('follow_up_logs', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -356,3 +368,5 @@ export type GatheringFinance = typeof gatheringFinances.$inferSelect
 export type NewGatheringFinance = typeof gatheringFinances.$inferInsert
 export type Recipe = typeof recipes.$inferSelect
 export type NewRecipe = typeof recipes.$inferInsert
+export type ContactOption = typeof contactOptions.$inferSelect
+export type NewContactOption = typeof contactOptions.$inferInsert
