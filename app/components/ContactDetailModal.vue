@@ -122,7 +122,19 @@ async function save() {
             <UInput
               v-model="form.contact"
               class="w-full"
-            />
+            >
+              <template #trailing>
+                <UButton
+                  v-if="form.contact"
+                  icon="i-lucide-x"
+                  color="neutral"
+                  variant="ghost"
+                  size="xs"
+                  aria-label="清除"
+                  @click="form.contact = ''"
+                />
+              </template>
+            </UInput>
           </UFormField>
           <UFormField label="等級">
             <USelect
@@ -139,13 +151,37 @@ async function save() {
             v-model="form.info"
             class="w-full"
             :rows="2"
-          />
+          >
+            <template #trailing>
+              <UButton
+                v-if="form.info"
+                icon="i-lucide-x"
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                aria-label="清除"
+                @click="form.info = ''"
+              />
+            </template>
+          </UTextarea>
         </UFormField>
         <UFormField label="狀態（織網表）">
           <UInput
             v-model="form.status"
             class="w-full"
-          />
+          >
+            <template #trailing>
+              <UButton
+                v-if="form.status"
+                icon="i-lucide-x"
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                aria-label="清除"
+                @click="form.status = ''"
+              />
+            </template>
+          </UInput>
         </UFormField>
         <div class="flex justify-end gap-2 pt-2">
           <UButton

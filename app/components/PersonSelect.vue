@@ -52,6 +52,7 @@ function onDelete(item: unknown) {
       v-model:open="open"
       :items="items"
       create-item
+      clear
       placeholder="選擇或輸入"
       class="w-full"
       @create="onCreate"
