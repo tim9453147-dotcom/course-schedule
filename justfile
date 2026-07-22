@@ -46,6 +46,13 @@ db-seed-local:
 deploy:
     bun run deploy
 
+# git push → 遠端 DB migrate → 部署（一鍵完成）
+# 使用方式：just release "commit message"
+release MSG:
+    git add -A && git commit -m "{{MSG}}" && git push
+    bun run db:migrate:remote
+    bun run deploy
+
 # 直接呼叫 wrangler，例如：
 # just wrangler pages secret put NUXT_ADMIN_USERNAME --project-name course-schedule-2689336
 wrangler *args:
