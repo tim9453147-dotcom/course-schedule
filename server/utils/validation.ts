@@ -166,6 +166,13 @@ export const contactStagePatchSchema = z.object({
 
 export type ContactStagePatch = z.infer<typeof contactStagePatchSchema>
 
+// 名單共用人名選項：新增
+export const contactOptionInputSchema = z.object({
+  label: z.string().trim().min(1, '請輸入名稱')
+})
+
+export type ContactOptionInput = z.infer<typeof contactOptionInputSchema>
+
 // 跟進紀錄輸入驗證
 export const followUpLogSchema = z.object({
   date,
