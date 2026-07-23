@@ -13,6 +13,8 @@ const notify = useNotify()
 const confirm = useConfirm()
 const { loggedIn, session } = useUserSession()
 
+const calendarRef = ref<InstanceType<typeof FullCalendar> | null>(null)
+
 const { data: courses, refresh: refreshCourses } = await useFetch<Course[]>('/api/courses')
 const { data: events, refresh: refreshEvents } = await useFetch<CalEvent[]>('/api/events')
 
@@ -887,6 +889,72 @@ async function onAiImage(e: Event) {
     input.value = '' // 清掉以便重選同一張
   }
 }
+
+/* ---------- 手機版左右滑動切換上下個月 ---------- */
+let touchStartX = 0
+let touchStartY = 0
+let touchStartTime = 0
+
+function handleTouchStart(e: TouchEvent) {
+  if (e.touches.length !== 1) return
+  const touch = e.touches[0]
+  if (!touch) return
+
+  // 點擊事件、彈窗或按鈕時跳過手勢換月
+  const target = e.target as HTMLElement | null
+  if (target?.closest('.fc-event, .fc-popover, button, input, textarea, select, a')) {
+    touchStartX = 0
+    touchStartY = 0
+    touchStartTime = 0
+    return
+  }
+
+  touchStartX = touch.clientX
+  touchStartY = touch.clientY
+  touchStartTime = Date.now()
+}
+
+function handleTouchEnd(e: TouchEvent) {
+  if (!touchStartTime || e.changedTouches.length !== 1) return
+  const touch = e.changedTouches[0]
+  if (!touch) return
+
+  const deltaX = touch.clientX - touchStartX
+  const deltaY = touch.clientY - touchStartY
+  const deltaTime = Date.now() - touchStartTime
+
+  touchStartX = 0
+  touchStartY = 0
+  touchStartTime = 0
+
+  const minSwipeDistance = 40
+  const maxVerticalDistance = 80
+  const maxSwipeTime = 500
+
+  if (
+    deltaTime <= maxSwipeTime &&
+    Math.abs(deltaX) >= minSwipeDistance &&
+    Math.abs(deltaY) <= maxVerticalDistance &&
+    Math.abs(deltaX) > Math.abs(deltaY) * 1.2
+  ) {
+    const api = calendarRef.value?.getApi()
+    if (!api) return
+
+    if (deltaX < 0) {
+      // 左滑 → 下個月
+      api.next()
+    } else {
+      // 右滑 → 上個月
+      api.prev()
+    }
+  }
+}
+
+function handleTouchCancel() {
+  touchStartX = 0
+  touchStartY = 0
+  touchStartTime = 0
+}
 </script>
 
 <template>
@@ -927,9 +995,15 @@ async function onAiImage(e: Event) {
       點空白日期可新增、點項目可編輯、直接拖曳可改日期（不重複）或星期（每週重複）。
     </p>
 
-    <div class="schedule-calendar" :class="{ 'is-editable': canEdit }">
+    <div
+      class="schedule-calendar"
+      :class="{ 'is-editable': canEdit }"
+      @touchstart="handleTouchStart"
+      @touchend="handleTouchEnd"
+      @touchcancel="handleTouchCancel"
+    >
       <ClientOnly>
-        <FullCalendar :options="calendarOptions" />
+        <FullCalendar ref="calendarRef" :options="calendarOptions" />
         <template #fallback>
           <div class="text-muted py-16 text-center">
             月曆載入中…
@@ -1277,6 +1351,10 @@ async function onAiImage(e: Event) {
 </template>
 
 <style scoped>
+.schedule-calendar {
+  touch-action: pan-y;
+}
+
 /* 讓 FullCalendar 配合 Nuxt UI 的明暗色與字級 */
 .schedule-calendar :deep(.fc) {
   --fc-border-color: var(--ui-border);
