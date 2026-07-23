@@ -1,0 +1,1 @@
+ALTER TABLE `contacts` ADD `contact_type` text DEFAULT 'customer' NOT NULL;

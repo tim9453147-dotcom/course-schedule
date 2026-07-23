@@ -5,6 +5,8 @@ export interface Contact {
   location: string | null
   // 是否已破題（false=未破題 / true=破題）
   broached: boolean
+  // 名單類型：customer=顧客 / leader=準領導人
+  contactType: 'customer' | 'leader'
   // 已完成的進度階段 id 陣列（對應 ContactStage.id）
   completedStages: number[]
   // 聯絡方式（開發名單）
@@ -55,6 +57,12 @@ export interface FollowUpLog {
 export const BROACHED_OPTIONS = [
   { label: '未破題', value: false },
   { label: '破題', value: true }
+] as const
+
+// 名單類型的二選一切換選項（顧客在左、準領導人在右）
+export const CONTACT_TYPE_OPTIONS = [
+  { label: '顧客', value: 'customer' },
+  { label: '準領導人', value: 'leader' }
 ] as const
 
 // 跟進頻率選項

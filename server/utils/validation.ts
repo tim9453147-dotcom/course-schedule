@@ -125,6 +125,8 @@ export const contactInputSchema = z.object({
   location: z.string().trim().nullish(),
   // 是否已破題（false=未破題 / true=破題）
   broached: z.boolean().default(false),
+  // 名單類型：customer=顧客 / leader=準領導人
+  contactType: z.enum(['customer', 'leader']).default('customer'),
   // 已完成的進度階段 id 陣列
   completedStages: z.array(z.number().int()).default([]),
   contact: z.string().trim().nullish(),
@@ -147,6 +149,7 @@ export type ContactInput = z.infer<typeof contactInputSchema>
 // 故在此把它們覆寫成「不帶 default 的 optional」，沒送的欄位就維持原值不動。
 export const contactPatchSchema = contactInputSchema.partial().extend({
   broached: z.boolean().optional(),
+  contactType: z.enum(['customer', 'leader']).optional(),
   completedStages: z.array(z.number().int()).optional()
 })
 

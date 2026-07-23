@@ -90,6 +90,23 @@ async function setBroached(c: Contact, value: boolean) {
   }
 }
 
+// 名單類型（顧客／準領導人，二選一切換）
+async function setContactType(c: Contact, value: 'customer' | 'leader') {
+  if (c.contactType === value) return
+  const prev = c.contactType
+  c.contactType = value // 樂觀更新
+  try {
+    const updated = await $fetch<Contact>(`/api/contacts/${c.id}`, {
+      method: 'PATCH',
+      body: { contactType: value }
+    })
+    Object.assign(c, updated)
+  } catch {
+    c.contactType = prev
+    notify.error('更新失敗')
+  }
+}
+
 // 切換某個進度階段是否完成
 async function toggleStage(c: Contact, stageId: number) {
   const prev = [...(c.completedStages ?? [])]
@@ -208,6 +225,7 @@ const form = reactive({
   name: '',
   location: '',
   broached: false,
+  contactType: 'customer' as 'customer' | 'leader',
   completedStages: [] as number[],
   followUpFreq: '',
   lastFollowUp: '',
@@ -226,6 +244,7 @@ function openCreate() {
     name: '',
     location: '',
     broached: false,
+    contactType: 'customer',
     completedStages: [],
     followUpFreq: '',
     lastFollowUp: '',
@@ -416,6 +435,9 @@ function onMetaSaved(updated: Contact) {
             <th class="text-left font-medium px-3 py-2 whitespace-nowrap">
               位置
             </th>
+            <th class="text-left font-medium px-3 py-2 whitespace-nowrap">
+              類型
+            </th>
             <th
               :colspan="(stages?.length ?? 0) + 1"
               class="font-medium px-2 py-2 text-center whitespace-nowrap"
@@ -459,6 +481,27 @@ function onMetaSaved(updated: Contact) {
                 @update:model-value="c.location = ($event as string)"
                 @change="patchField(c, 'location')"
               />
+            </td>
+            <!-- 名單類型：顧客／準領導人 二選一切換 -->
+            <td class="px-2 py-1.5 whitespace-nowrap">
+              <div class="inline-flex rounded-full border border-default overflow-hidden text-xs font-medium">
+                <button
+                  type="button"
+                  class="px-2.5 py-1 cursor-pointer transition-colors"
+                  :class="c.contactType === 'customer' ? 'bg-primary text-inverted' : 'text-dimmed hover:bg-elevated'"
+                  @click="setContactType(c, 'customer')"
+                >
+                  顧客
+                </button>
+                <button
+                  type="button"
+                  class="px-2.5 py-1 cursor-pointer transition-colors"
+                  :class="c.contactType === 'leader' ? 'bg-primary text-inverted' : 'text-dimmed hover:bg-elevated'"
+                  @click="setContactType(c, 'leader')"
+                >
+                  準領導人
+                </button>
+              </div>
             </td>
             <!-- 破題與否：二選一切換 -->
             <td class="px-2 py-1.5 whitespace-nowrap">
@@ -597,6 +640,27 @@ function onMetaSaved(updated: Contact) {
                 @click="form.broached = true"
               >
                 破題
+              </button>
+            </div>
+          </UFormField>
+
+          <UFormField label="類型">
+            <div class="inline-flex rounded-lg border border-default overflow-hidden text-sm font-medium">
+              <button
+                type="button"
+                class="px-4 py-1.5 cursor-pointer transition-colors"
+                :class="form.contactType === 'customer' ? 'bg-primary text-inverted' : 'hover:bg-elevated'"
+                @click="form.contactType = 'customer'"
+              >
+                顧客
+              </button>
+              <button
+                type="button"
+                class="px-4 py-1.5 cursor-pointer transition-colors"
+                :class="form.contactType === 'leader' ? 'bg-primary text-inverted' : 'hover:bg-elevated'"
+                @click="form.contactType = 'leader'"
+              >
+                準領導人
               </button>
             </div>
           </UFormField>

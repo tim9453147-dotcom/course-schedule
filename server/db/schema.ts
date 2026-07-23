@@ -141,6 +141,8 @@ export const contacts = sqliteTable('contacts', {
   location: text('location'),
   // 是否已破題（false=未破題 / true=破題）。固定的二元狀態，與下方可自訂階段分開。
   broached: integer('broached', { mode: 'boolean' }).notNull().default(false),
+  // 名單類型：customer=顧客 / leader=準領導人。每筆各自分類，預設 customer。
+  contactType: text('contact_type').notNull().default('customer'),
   // 已完成的「進度階段」id 陣列（對應 contact_stages.id），以 JSON 存放
   completedStages: text('completed_stages', { mode: 'json' })
     .$type<number[]>()
