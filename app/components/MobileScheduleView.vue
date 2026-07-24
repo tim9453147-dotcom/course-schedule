@@ -48,12 +48,8 @@ const selectedDate = ref(todayStr())
 const currentYear = ref(new Date().getFullYear())
 const currentMonth = ref(new Date().getMonth()) // 0-indexed (0=Jan ... 11=Dec)
 
-// 視圖切換模式：'day' (當日卡片 + 月曆) ↔ 'month' (整月所有課程總覽清單)
-const viewMode = ref<'day' | 'month'>('day')
-const viewModeItems = [
-  { label: '當日卡片', value: 'day', icon: 'i-lucide-calendar-days' },
-  { label: '整月總覽', value: 'month', icon: 'i-lucide-list-todo' }
-]
+// 列表區的檢視模式：'day' (當日行程卡片) ↔ 'month' (整月所有課程清單)
+const listScope = ref<'day' | 'month'>('day')
 
 const monthTitle = computed(() => `${currentYear.value} 年 ${currentMonth.value + 1} 月`)
 
@@ -245,7 +241,7 @@ const currentMonthPrefix = computed(() => {
   return `${y}-${m}`
 })
 
-// 📜【重點功能】整個月的所有課程按日期分組（全月總覽模式專用）
+// 📜【整個月的所有課程按日期分組】（下面表格切換至全月模式時使用）
 const currentMonthGroupedEvents = computed(() => {
   const prefix = currentMonthPrefix.value
   const result: Array<{ dateStr: string; label: string; isToday: boolean; events: EventItem[] }> = []
@@ -375,13 +371,13 @@ function getEventExtra(ev: EventItem) {
 
 function onDayClick(dateStr: string) {
   selectedDate.value = dateStr
-  viewMode.value = 'day'
+  listScope.value = 'day'
 }
 </script>
 
 <template>
   <div class="mobile-schedule space-y-4 select-none pb-24">
-    <!-- 頂部列：教室分頁 & 匯入課表按鈕 -->
+    <!-- 頂部列：教室分頁選單 & 匯入課表按鈕 -->
     <div class="flex items-center justify-between gap-2 px-1">
       <UTabs
         v-if="props.tabItems.length > 1"
@@ -392,6 +388,7 @@ function onDayClick(dateStr: string) {
       />
       <div v-else class="flex-1" />
       
+      <!-- 匯入課表按鈕 -->
       <UButton
         v-if="props.canEdit"
         icon="i-lucide-file-up"
@@ -405,7 +402,7 @@ function onDayClick(dateStr: string) {
       </UButton>
     </div>
 
-    <!-- 月曆控制區 (標題 + 視圖切換模式 Tab + 今天鈕 + 月份切換按鈕) -->
+    <!-- 月曆控制區 (標題 + 今天鈕 + 月份切換按鈕) -->
     <div class="flex items-center justify-between px-1">
       <div class="flex items-center gap-2">
         <h2 class="text-lg font-bold text-default tracking-tight">
@@ -441,30 +438,6 @@ function onDayClick(dateStr: string) {
           aria-label="下個月"
           @click="nextMonth"
         />
-      </div>
-    </div>
-
-    <!-- 視圖模式分頁切換：【當日卡片】 ↔ 【整月總覽】 -->
-    <div class="flex items-center justify-between px-1 bg-elevated/60 p-1 rounded-xl border border-default/50">
-      <div class="grid grid-cols-2 gap-1 flex-1">
-        <button
-          type="button"
-          class="flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all"
-          :class="viewMode === 'day' ? 'bg-card text-primary shadow-xs' : 'text-muted hover:text-default'"
-          @click="viewMode = 'day'"
-        >
-          <UIcon name="i-lucide-calendar-days" class="size-4" />
-          <span>當日日曆</span>
-        </button>
-        <button
-          type="button"
-          class="flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all"
-          :class="viewMode === 'month' ? 'bg-card text-primary shadow-xs' : 'text-muted hover:text-default'"
-          @click="viewMode = 'month'"
-        >
-          <UIcon name="i-lucide-list-todo" class="size-4" />
-          <span>整月課程總覽</span>
-        </button>
       </div>
     </div>
 
@@ -506,9 +479,8 @@ function onDayClick(dateStr: string) {
           >
             <span>{{ d.dayNum }}</span>
 
-            <!-- 格子內部：課程名稱預覽簡籤或彩色小點 -->
+            <!-- 格子內部：課程名稱預覽簡籤與彩色小點 -->
             <div v-if="eventsByDate.has(d.dateStr)" class="flex flex-col items-center justify-center w-full px-0.5 mt-0.5 space-y-0.5">
-              <!-- 顯示當日首條課程名稱關鍵字 (超貼心設計) -->
               <span
                 v-if="eventsByDate.get(d.dateStr)?.[0]"
                 class="w-full text-[9px] truncate leading-none py-0.5 px-0.5 rounded font-semibold scale-90"
@@ -516,7 +488,6 @@ function onDayClick(dateStr: string) {
               >
                 {{ eventsByDate.get(d.dateStr)?.[0]?.title }}
               </span>
-              <!-- 多於 1 條行程時顯示狀態點 -->
               <div class="flex items-center justify-center gap-0.5 h-1">
                 <span
                   v-for="(ev, idx) in (eventsByDate.get(d.dateStr) || []).slice(0, 3)"
@@ -534,7 +505,7 @@ function onDayClick(dateStr: string) {
 
     <!-- ⚡ 今日課程速覽 Banner (不在今天時醒目提示) -->
     <div
-      v-if="selectedDate !== todayStr() && todayEvents.length > 0 && viewMode === 'day'"
+      v-if="selectedDate !== todayStr() && todayEvents.length > 0 && listScope === 'day'"
       class="rounded-2xl border border-primary/30 bg-primary/5 p-3.5 shadow-xs space-y-2"
     >
       <div class="flex items-center justify-between">
@@ -577,20 +548,41 @@ function onDayClick(dateStr: string) {
       </div>
     </div>
 
-    <!-- 🌟【視圖 A：當日詳情卡片模式】 -->
-    <template v-if="viewMode === 'day'">
-      <div class="flex items-center justify-between pt-1 px-1">
-        <div class="flex items-center gap-2">
-          <UIcon name="i-lucide-calendar-days" class="size-5 text-primary" />
-          <h3 class="text-base font-bold text-default">
-            {{ selectedDateLabel }}
-          </h3>
-        </div>
-        <span class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-primary/10 text-primary">
-          {{ selectedDayEvents.length }} 項行程
-        </span>
+    <!-- 🌟 下方列表區標頭：左側為日期 / 月份標題，右側提供【當日行程 | 整月總覽】精緻切換開關 -->
+    <div class="flex items-center justify-between pt-1 px-1 gap-2">
+      <div class="flex items-center gap-2 min-w-0">
+        <UIcon
+          :name="listScope === 'day' ? 'i-lucide-calendar-days' : 'i-lucide-list-todo'"
+          class="size-5 text-primary shrink-0"
+        />
+        <h3 class="text-base font-bold text-default truncate">
+          {{ listScope === 'day' ? selectedDateLabel : `${currentYear}年${currentMonth + 1}月 全月課程` }}
+        </h3>
       </div>
 
+      <!-- 下方表格右上方精緻的 【當日 | 整月】 切換切換開關 (Segment Switch) -->
+      <div class="flex items-center shrink-0 bg-elevated p-0.5 rounded-lg border border-default/60">
+        <button
+          type="button"
+          class="px-2.5 py-1 rounded-md text-xs font-bold transition-all flex items-center gap-1"
+          :class="listScope === 'day' ? 'bg-card text-primary shadow-xs' : 'text-muted hover:text-default'"
+          @click="listScope = 'day'"
+        >
+          <span>當日</span>
+        </button>
+        <button
+          type="button"
+          class="px-2.5 py-1 rounded-md text-xs font-bold transition-all flex items-center gap-1"
+          :class="listScope === 'month' ? 'bg-card text-primary shadow-xs' : 'text-muted hover:text-default'"
+          @click="listScope = 'month'"
+        >
+          <span>整月</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 🌟【模式 1：當日行程列表】 -->
+    <template v-if="listScope === 'day'">
       <div v-if="selectedDayEvents.length > 0" class="space-y-3">
         <div
           v-for="(ev, i) in selectedDayEvents"
@@ -673,27 +665,14 @@ function onDayClick(dateStr: string) {
       </div>
     </template>
 
-    <!-- 🌟【視圖 B：整月課程總覽模式】 (用戶要求的整月所有課程與名稱總覽) -->
-    <template v-else-if="viewMode === 'month'">
-      <div class="flex items-center justify-between pt-1 px-1">
-        <div class="flex items-center gap-2">
-          <UIcon name="i-lucide-list-todo" class="size-5 text-primary" />
-          <h3 class="text-base font-bold text-default">
-            {{ currentYear }} 年 {{ currentMonth + 1 }} 月全月課程總覽
-          </h3>
-        </div>
-        <span class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-primary/10 text-primary">
-          共 {{ currentMonthGroupedEvents.reduce((acc, g) => acc + g.events.length, 0) }} 門課程
-        </span>
-      </div>
-
+    <!-- 🌟【模式 2：整月課程總覽列表】 (下方表格切換成全月顯示) -->
+    <template v-else-if="listScope === 'month'">
       <div v-if="currentMonthGroupedEvents.length > 0" class="space-y-4">
         <div
           v-for="group in currentMonthGroupedEvents"
           :key="group.dateStr"
           class="space-y-2"
         >
-          <!-- 日期標頭 Sticky Header -->
           <div class="sticky top-0 z-20 flex items-center gap-2 bg-background/95 backdrop-blur-md py-1.5 px-1 border-b border-default/40">
             <span
               class="size-2.5 rounded-full"
@@ -707,7 +686,6 @@ function onDayClick(dateStr: string) {
             </span>
           </div>
 
-          <!-- 該日期的所有課程卡片 -->
           <div class="space-y-2.5 pl-1">
             <div
               v-for="(ev, evIdx) in group.events"
@@ -740,14 +718,12 @@ function onDayClick(dateStr: string) {
                 </div>
               </div>
 
-              <!-- 課程完整名稱 (大字清晰) -->
               <div class="pl-1">
                 <h4 class="text-base font-bold text-default group-hover:text-primary transition-colors leading-snug">
                   {{ ev.title }}
                 </h4>
               </div>
 
-              <!-- 人員角色 -->
               <div v-if="getEventExtra(ev).roles.length > 0" class="flex flex-wrap items-center gap-1.5 pl-1 pt-1 border-t border-default/30">
                 <div
                   v-for="(r, rIdx) in getEventExtra(ev).roles"
