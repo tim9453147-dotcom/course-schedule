@@ -434,6 +434,60 @@ async function onDetailDelete() {
   if (ok) detailOpen.value = false
 }
 
+// 手機版點行程卡片
+function onMobileEventClick(ev: any, targetEl?: HTMLElement) {
+  const source = ev.extendedProps?.source as 'course' | 'event'
+  const refId = ev.extendedProps?.refId as number
+  editingSource.value = source
+  editingId.value = refId
+
+  if (source === 'course') {
+    const c = courses.value?.find(x => x.id === refId)
+    if (!c) return
+    const occ = (ev.extendedProps?.occDate as string) || ev.start.slice(0, 10)
+    editingOccurrenceDate.value = occ
+    detail.value = {
+      source, refId, occDate: occ,
+      title: c.title, kind: c.kind ?? 'course', color: c.color,
+      dateLabel: dateLabel(occ), timeLabel: timeLabel(c.startTime, c.endTime),
+      repeatLabel: `每週${dayName(c.dayOfWeek).slice(1)}`,
+      location: c.location ?? '',
+      host: c.host ?? '', sharer: c.sharer ?? '', summarizer: c.summarizer ?? '', pm: c.pm ?? '',
+      note: c.note ?? ''
+    }
+  } else {
+    const e = events.value?.find(x => x.id === refId)
+    if (!e) return
+    editingOccurrenceDate.value = ''
+    detail.value = {
+      source, refId, occDate: e.date,
+      title: e.title, kind: e.kind ?? 'activity', color: e.color,
+      dateLabel: dateLabel(e.date), timeLabel: timeLabel(e.startTime, e.endTime),
+      repeatLabel: '',
+      location: e.location ?? '',
+      host: e.host ?? '', sharer: e.sharer ?? '', summarizer: e.summarizer ?? '', pm: e.pm ?? '',
+      note: e.note ?? ''
+    }
+  }
+
+  if (targetEl) {
+    const rect = targetEl.getBoundingClientRect()
+    anchorRef.value = { x: rect.left + rect.width / 2, y: rect.top }
+  } else if (typeof window !== 'undefined') {
+    anchorRef.value = { x: window.innerWidth / 2, y: window.innerHeight / 2 }
+  }
+  quickOpen.value = false
+  detailOpen.value = true
+}
+
+// 手機版點新增行程
+function onMobileCreate(dateStr: string) {
+  resetForm()
+  mode.value = 'create'
+  form.date = dateStr || todayStr()
+  open.value = true
+}
+
 // 把 Date 轉成本地時區的 'YYYY-MM-DD'
 function toLocalDateStr(d: Date) {
   const y = d.getFullYear()
@@ -1057,52 +1111,71 @@ function handleTouchCancel() {
 
 <template>
   <!-- 手機版縮小左右 padding 讓課表接近滿版、日期欄位更寬；桌機維持原本留白 -->
-  <UContainer class="py-8 px-1.5 sm:px-6 lg:px-8">
-    <!-- 只有一間教室（例如僅中壢）時，分頁沒有切換意義，直接隱藏；兩顆編輯鈕仍靠右 -->
-    <div
-      v-if="tabItems.length > 1 || canEdit"
-      class="flex items-center justify-between gap-4 mb-4"
-    >
-      <UTabs
-        v-if="tabItems.length > 1"
-        v-model="classroom"
-        :items="tabItems"
-        class="flex-1"
+  <UContainer class="py-4 md:py-8 px-1.5 sm:px-6 lg:px-8">
+    <!-- 手機版視圖 (<768px) -->
+    <div class="md:hidden">
+      <MobileScheduleView
+        v-model:current-classroom="classroom"
+        :events="calendarEvents"
+        :classrooms="visibleClassrooms"
+        :can-edit="canEdit"
+        :tab-items="tabItems"
+        :courses="courses ?? []"
+        :raw-events="events ?? []"
+        @select-event="onMobileEventClick"
+        @create-event="onMobileCreate"
+        @open-import="openImport"
       />
-      <div v-else class="flex-1" />
-      <div v-if="canEdit" class="flex shrink-0 gap-2">
-        <UButton
-          icon="i-lucide-upload"
-          color="neutral"
-          variant="outline"
-          @click="openImport"
-        >
-          匯入
-        </UButton>
-        <UButton
-          icon="i-lucide-plus"
-          @click="openCreate"
-        >
-          新增
-        </UButton>
-      </div>
     </div>
-    <div
-      class="schedule-calendar"
-      :class="{ 'is-editable': canEdit }"
-      @touchstart.capture="handleTouchStart"
-      @touchmove.capture="handleTouchMove"
-      @touchend.capture="handleTouchEnd"
-      @touchcancel.capture="handleTouchCancel"
-    >
-      <ClientOnly>
-        <FullCalendar ref="calendarRef" :options="calendarOptions" />
-        <template #fallback>
-          <div class="text-muted py-16 text-center">
-            月曆載入中…
-          </div>
-        </template>
-      </ClientOnly>
+
+    <!-- 桌機版視圖 (>=768px) -->
+    <div class="hidden md:block">
+      <!-- 只有一間教室（例如僅中壢）時，分頁沒有切換意義，直接隱藏；兩顆編輯鈕仍靠右 -->
+      <div
+        v-if="tabItems.length > 1 || canEdit"
+        class="flex items-center justify-between gap-4 mb-4"
+      >
+        <UTabs
+          v-if="tabItems.length > 1"
+          v-model="classroom"
+          :items="tabItems"
+          class="flex-1"
+        />
+        <div v-else class="flex-1" />
+        <div v-if="canEdit" class="flex shrink-0 gap-2">
+          <UButton
+            icon="i-lucide-upload"
+            color="neutral"
+            variant="outline"
+            @click="openImport"
+          >
+            匯入
+          </UButton>
+          <UButton
+            icon="i-lucide-plus"
+            @click="openCreate"
+          >
+            新增
+          </UButton>
+        </div>
+      </div>
+      <div
+        class="schedule-calendar"
+        :class="{ 'is-editable': canEdit }"
+        @touchstart.capture="handleTouchStart"
+        @touchmove.capture="handleTouchMove"
+        @touchend.capture="handleTouchEnd"
+        @touchcancel.capture="handleTouchCancel"
+      >
+        <ClientOnly>
+          <FullCalendar ref="calendarRef" :options="calendarOptions" />
+          <template #fallback>
+            <div class="text-muted py-16 text-center">
+              月曆載入中…
+            </div>
+          </template>
+        </ClientOnly>
+      </div>
     </div>
 
     <!-- 快速建立彈窗（點空白格，錨定點擊處，像 Google 日曆） -->
