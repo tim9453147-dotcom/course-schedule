@@ -41,15 +41,29 @@ const repeatItems = REPEAT_OPTIONS
 // FullCalendar 目前可見的日期範圍（含前後補格；end 為「不含」上界）。
 // 每週課改為「手動展開」成個別日期實例（才能套用 startDate/endDate/exDates），
 // 故需要知道要展開到哪段範圍；datesSet 會在初次渲染與換月時更新它。
-// 初始給今天 ±60 天的緩衝，確保 datesSet 觸發前也有合理範圍。
+// 初始給今天 ±365 天的緩衝，確保手機版與 datesSet 觸發前都有完整涵蓋範圍。
 const viewRange = ref<{ start: string, end: string }>((() => {
   const today = new Date()
   const lo = new Date(today)
-  lo.setDate(today.getDate() - 60)
+  lo.setDate(today.getDate() - 365)
   const hi = new Date(today)
-  hi.setDate(today.getDate() + 60)
+  hi.setDate(today.getDate() + 365)
   return { start: toLocalDateStr(lo), end: toLocalDateStr(hi) }
 })())
+
+function updateMobileViewRange(year: number, month: number) {
+  // 手機版切換月份時，確保可見範圍涵蓋該月份前後 120 天
+  const startD = new Date(year, month - 3, 1)
+  const endD = new Date(year, month + 4, 0)
+  const newStart = toLocalDateStr(startD)
+  const newEnd = toLocalDateStr(endD)
+  if (newStart < viewRange.value.start || newEnd > viewRange.value.end) {
+    viewRange.value = {
+      start: newStart < viewRange.value.start ? newStart : viewRange.value.start,
+      end: newEnd > viewRange.value.end ? newEnd : viewRange.value.end
+    }
+  }
+}
 
 function onDatesSet(arg: { startStr: string, endStr: string, view: { type: string } }) {
   viewRange.value = { start: arg.startStr.slice(0, 10), end: arg.endStr.slice(0, 10) }
@@ -1125,6 +1139,7 @@ function handleTouchCancel() {
         @select-event="onMobileEventClick"
         @create-event="onMobileCreate"
         @open-import="openImport"
+        @change-month="updateMobileViewRange"
       />
     </div>
 
