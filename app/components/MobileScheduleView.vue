@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 
 interface EventItem {
   title: string
@@ -82,66 +82,111 @@ function goToday() {
   notifyMonthChange()
 }
 
-/* ---------- 手機版左右滑動切換月份 (Touch Swipe Gestures) ---------- */
-const gridTouchX = ref(0)
-const gridTouchY = ref(0)
-const gridDeltaX = ref(0)
+// 當切換教室時，自動歸位至今天與當月
+watch(() => props.currentClassroom, () => {
+  goToday()
+})
+
+onMounted(() => {
+  goToday()
+})
+
+/* ---------- 原生級超流暢手勢滑動切換月份 (Silky Touch Swipe) ---------- */
+const touchStartX = ref(0)
+const touchStartY = ref(0)
+const touchStartTime = ref(0)
+const gridTranslateX = ref(0)
 const isDragging = ref(false)
 const isAnimating = ref(false)
+const transitionStyle = ref('none')
 
 function onTouchStart(e: TouchEvent) {
   if (e.touches.length !== 1 || isAnimating.value) return
   const t = e.touches[0]
   if (!t) return
-  gridTouchX.value = t.clientX
-  gridTouchY.value = t.clientY
-  gridDeltaX.value = 0
+  touchStartX.value = t.clientX
+  touchStartY.value = t.clientY
+  touchStartTime.value = Date.now()
+  gridTranslateX.value = 0
   isDragging.value = false
+  transitionStyle.value = 'none'
 }
 
 function onTouchMove(e: TouchEvent) {
   if (e.touches.length !== 1 || isAnimating.value) return
   const t = e.touches[0]
   if (!t) return
-  const dx = t.clientX - gridTouchX.value
-  const dy = t.clientY - gridTouchY.value
+  const dx = t.clientX - touchStartX.value
+  const dy = t.clientY - touchStartY.value
 
-  if (!isDragging.value && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 10) {
+  if (!isDragging.value && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 8) {
     isDragging.value = true
   }
 
   if (isDragging.value) {
-    gridDeltaX.value = dx * 0.75
+    // 帶阻尼阻抗跟手
+    gridTranslateX.value = dx * 0.85
   }
 }
 
 function onTouchEnd() {
   if (!isDragging.value) return
-  const dx = gridDeltaX.value
-  const threshold = 40
+  const dx = gridTranslateX.value
+  const deltaTime = Date.now() - touchStartTime.value
+  const velocity = Math.abs(dx) / Math.max(deltaTime, 1)
 
-  if (Math.abs(dx) > threshold) {
+  const isQuickSwipe = deltaTime < 300 && Math.abs(dx) > 25
+  const isFarSwipe = Math.abs(dx) > 65
+
+  if (isQuickSwipe || isFarSwipe || velocity > 0.3) {
     isAnimating.value = true
-    if (dx < 0) {
-      nextMonth()
-    } else {
-      prevMonth()
-    }
-  }
+    const direction = dx < 0 ? 'next' : 'prev'
+    const targetOutX = dx < 0 ? -320 : 320
+    
+    // Slide out
+    transitionStyle.value = 'transform 140ms cubic-bezier(0.4, 0, 1, 1), opacity 140ms ease-out'
+    gridTranslateX.value = targetOutX
 
-  gridDeltaX.value = 0
-  isDragging.value = false
-  setTimeout(() => {
-    isAnimating.value = false
-  }, 250)
+    setTimeout(() => {
+      // Switch month state
+      if (direction === 'next') nextMonth()
+      else prevMonth()
+
+      // Teleport to opposite side without transition
+      transitionStyle.value = 'none'
+      gridTranslateX.value = direction === 'next' ? 280 : -280
+
+      // Slide back in smoothly
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          transitionStyle.value = 'transform 200ms cubic-bezier(0.16, 1, 0.3, 1), opacity 200ms ease-out'
+          gridTranslateX.value = 0
+          setTimeout(() => {
+            isAnimating.value = false
+            isDragging.value = false
+            transitionStyle.value = 'none'
+          }, 200)
+        })
+      })
+    }, 140)
+  } else {
+    // Spring bounce back to 0
+    transitionStyle.value = 'transform 240ms cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+    gridTranslateX.value = 0
+    setTimeout(() => {
+      isDragging.value = false
+      transitionStyle.value = 'none'
+    }, 240)
+  }
 }
 
 function onTouchCancel() {
-  gridDeltaX.value = 0
+  transitionStyle.value = 'transform 200ms ease-out'
+  gridTranslateX.value = 0
   isDragging.value = false
 }
 
-/* ---------- 42 格月曆陣列 ---------- */
+/* ---------- 42 格月曆網格陣列 ---------- */
 const calendarDays = computed(() => {
   const year = currentYear.value
   const month = currentMonth.value
@@ -192,6 +237,16 @@ const eventsByDate = computed(() => {
   return map
 })
 
+// 「今天」的所有課程與活動行程
+const todayEvents = computed(() => {
+  const list = eventsByDate.value.get(todayStr()) ?? []
+  return [...list].sort((a, b) => {
+    if (a.allDay && !b.allDay) return -1
+    if (!a.allDay && b.allDay) return 1
+    return a.start.localeCompare(b.start)
+  })
+})
+
 // 目前選中日期的行程清單
 const selectedDayEvents = computed(() => {
   const list = eventsByDate.value.get(selectedDate.value) ?? []
@@ -202,9 +257,21 @@ const selectedDayEvents = computed(() => {
   })
 })
 
-// 選中日期標題 (例如 "7/24 週五")
+// 今日日期中文標籤 (如 "7月24日 週五")
+const todayFormattedLabel = computed(() => {
+  const [y, m, d] = todayStr().split('-').map(Number)
+  if (!y || !m || !d) return todayStr()
+  const dt = new Date(y, m - 1, d)
+  const days = ['週日', '週一', '週二', '週三', '週四', '週五', '週六']
+  return `${m}月${d}日 ${days[dt.getDay()]}`
+})
+
+// 目前選中日期的標籤
 const selectedDateLabel = computed(() => {
   if (!selectedDate.value) return ''
+  if (selectedDate.value === todayStr()) {
+    return `${todayFormattedLabel.value} (今天)`
+  }
   const [y, m, d] = selectedDate.value.split('-').map(Number)
   if (!y || !m || !d) return selectedDate.value
   const dt = new Date(y, m - 1, d)
@@ -212,7 +279,7 @@ const selectedDateLabel = computed(() => {
   return `${m}月${d}日 ${days[dt.getDay()]}`
 })
 
-// 取得該筆活動/課程的完整詳細屬性（講師、主持人、地點、種類標籤等）
+// 取得該筆活動/課程的完整詳細屬性
 function getEventExtra(ev: EventItem) {
   const { source, refId } = ev.extendedProps ?? {}
   if (source === 'course' && props.courses) {
@@ -268,33 +335,33 @@ function onDayClick(dateStr: string) {
 </script>
 
 <template>
-  <div class="mobile-schedule space-y-4 select-none pb-20">
-    <!-- 頂部控制列：教室分頁選單 & 精緻匯入按鈕（移除右上角冗餘的新增按鈕） -->
+  <div class="mobile-schedule space-y-4 select-none pb-24">
+    <!-- 頂部列：教室分頁 & 匯入課表按鈕 -->
     <div class="flex items-center justify-between gap-2 px-1">
       <UTabs
         v-if="props.tabItems.length > 1"
         :model-value="props.currentClassroom"
         :items="props.tabItems"
-        class="flex-1 max-w-[calc(100%-5rem)]"
+        class="flex-1 max-w-[calc(100%-5.5rem)]"
         @update:model-value="val => emit('update:currentClassroom', String(val))"
       />
       <div v-else class="flex-1" />
       
-      <!-- 精緻美化的「匯入」按鈕 -->
+      <!-- 匯入課表按鈕 -->
       <UButton
         v-if="props.canEdit"
         icon="i-lucide-file-up"
         color="neutral"
         variant="soft"
         size="sm"
-        class="rounded-full px-3 shadow-xs border border-default/50 hover:bg-elevated transition"
+        class="rounded-full px-3 shadow-xs border border-default/40 hover:bg-elevated transition"
         @click="emit('open-import')"
       >
         匯入課表
       </UButton>
     </div>
 
-    <!-- 月曆控制 Header (年月標題 + 前後月切換) -->
+    <!-- 月曆控制區 (標題 + 今天鈕 + 月份切換按鈕) -->
     <div class="flex items-center justify-between px-1">
       <div class="flex items-center gap-2">
         <h2 class="text-lg font-bold text-default tracking-tight">
@@ -307,7 +374,7 @@ function onDayClick(dateStr: string) {
           class="rounded-full px-2.5 font-medium"
           @click="goToday"
         >
-          今天
+          回到今天
         </UButton>
       </div>
       <div class="flex items-center gap-1">
@@ -332,7 +399,7 @@ function onDayClick(dateStr: string) {
       </div>
     </div>
 
-    <!-- 支援左右滑動的月曆大盤區 (Touch Swipe Grid) -->
+    <!-- 月曆網格 (支援流暢 Touch Swipe 滑動切換月份) -->
     <div
       class="relative overflow-hidden rounded-2xl border border-default bg-elevated/40 p-2.5 shadow-xs transition-all"
       @touchstart="onTouchStart"
@@ -341,11 +408,10 @@ function onDayClick(dateStr: string) {
       @touchcancel="onTouchCancel"
     >
       <div
-        class="transition-transform duration-150 ease-out"
-        :style="{ transform: `translateX(${gridDeltaX}px)` }"
+        :style="{ transform: `translateX(${gridTranslateX}px)`, transition: transitionStyle }"
       >
-        <!-- 星期標題 -->
-        <div class="grid grid-cols-7 text-center text-xs text-muted mb-1 py-1 font-semibold">
+        <!-- 星期欄頭 -->
+        <div class="grid grid-cols-7 text-center text-xs text-muted mb-1.5 py-1 font-semibold">
           <span class="text-rose-500/90">日</span>
           <span>一</span>
           <span>二</span>
@@ -355,7 +421,7 @@ function onDayClick(dateStr: string) {
           <span class="text-sky-500/90">六</span>
         </div>
 
-        <!-- 42 格日期區 -->
+        <!-- 42 格日期矩陣 -->
         <div class="grid grid-cols-7 gap-y-1.5 text-center">
           <button
             v-for="d in calendarDays"
@@ -371,7 +437,7 @@ function onDayClick(dateStr: string) {
           >
             <span>{{ d.dayNum }}</span>
 
-            <!-- 行程狀態彩色圓點 (Dots) -->
+            <!-- 行程狀況彩色小點 (Event Dots) -->
             <div v-if="eventsByDate.has(d.dateStr)" class="flex items-center justify-center gap-1 mt-0.5 h-2">
               <span
                 v-for="(ev, idx) in (eventsByDate.get(d.dateStr) || []).slice(0, 3)"
@@ -386,16 +452,62 @@ function onDayClick(dateStr: string) {
       </div>
     </div>
 
-    <!-- 選中日期的行程列表 Header -->
-    <div class="flex items-center justify-between pt-2 px-1">
+    <!-- ⚡【重點功能】今日課程 / 行程 醒目預覽區 -->
+    <div
+      v-if="selectedDate !== todayStr() && todayEvents.length > 0"
+      class="rounded-2xl border border-primary/30 bg-primary/5 p-3.5 shadow-xs space-y-2"
+    >
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="flex size-2.5 rounded-full bg-primary animate-ping" />
+          <h3 class="text-sm font-bold text-primary flex items-center gap-1">
+            <UIcon name="i-lucide-sparkles" class="size-4" />
+            今日課程速覽 ({{ todayFormattedLabel }})
+          </h3>
+        </div>
+        <UButton
+          size="xs"
+          color="primary"
+          variant="soft"
+          class="rounded-full font-medium"
+          @click="goToday"
+        >
+          查看今天
+        </UButton>
+      </div>
+
+      <!-- 今日簡要行程列表 -->
+      <div class="space-y-1.5">
+        <div
+          v-for="(ev, tIdx) in todayEvents.slice(0, 2)"
+          :key="tIdx"
+          class="flex items-center justify-between text-xs bg-card/80 p-2 rounded-xl border border-default/50 cursor-pointer hover:border-primary/50 transition"
+          @click="emit('select-event', ev, $event.currentTarget as HTMLElement)"
+        >
+          <div class="flex items-center gap-2 min-w-0 flex-1">
+            <span
+              class="size-2 rounded-full shrink-0"
+              :style="{ backgroundColor: ev.color || '#3b82f6' }"
+            />
+            <span class="font-bold text-default truncate">{{ ev.title }}</span>
+          </div>
+          <span class="text-muted shrink-0 text-[11px] font-medium ml-2">
+            {{ ev.allDay ? '全天' : ev.start.slice(11, 16) }}
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 當前選中日期的完整行程列表 Header -->
+    <div class="flex items-center justify-between pt-1 px-1">
       <div class="flex items-center gap-2">
-        <div class="size-2 rounded-full bg-primary animate-pulse" />
+        <UIcon name="i-lucide-calendar-days" class="size-5 text-primary" />
         <h3 class="text-base font-bold text-default">
           {{ selectedDateLabel }}
         </h3>
       </div>
-      <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-muted/20 text-muted">
-        共 {{ selectedDayEvents.length }} 項活動
+      <span class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-primary/10 text-primary">
+        {{ selectedDayEvents.length }} 項行程
       </span>
     </div>
 
@@ -404,69 +516,67 @@ function onDayClick(dateStr: string) {
       <div
         v-for="(ev, i) in selectedDayEvents"
         :key="i"
-        class="group relative flex flex-col gap-2.5 rounded-2xl border border-default/70 bg-card p-4 shadow-xs hover:shadow-md transition-all active:scale-[0.99] overflow-hidden"
+        class="group relative flex flex-col gap-2.5 rounded-2xl border border-default/80 bg-card p-4 shadow-xs hover:shadow-md transition-all active:scale-[0.99] overflow-hidden"
         @click="emit('select-event', ev, $event.currentTarget as HTMLElement)"
       >
-        <!-- 左側彩色邊條點綴 -->
+        <!-- 左側主體配色邊條 -->
         <div
           class="absolute left-0 top-0 bottom-0 w-1.5 rounded-l-2xl"
           :style="{ backgroundColor: ev.color || '#3b82f6' }"
         />
 
-        <!-- 第一層：分類 Badges + 時間 -->
+        <!-- 第一列：標籤與時間 -->
         <div class="flex items-center justify-between gap-2 pl-1">
           <div class="flex items-center gap-2">
-            <!-- 類型 Badge (課程 / 活動) -->
             <span
-              class="inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-md"
-              :class="getEventExtra(ev).kind === 'course' ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'"
+              class="inline-flex items-center text-xs font-bold px-2 py-0.5 rounded-md"
+              :class="getEventExtra(ev).kind === 'course' ? 'bg-sky-500/15 text-sky-600 dark:text-sky-400' : 'bg-rose-500/15 text-rose-600 dark:text-rose-400'"
             >
               {{ getEventExtra(ev).kindLabel }}
             </span>
-            <span v-if="getEventExtra(ev).repeatLabel" class="text-[11px] text-muted">
+            <span v-if="getEventExtra(ev).repeatLabel" class="text-[11px] text-muted font-medium">
               {{ getEventExtra(ev).repeatLabel }}
             </span>
           </div>
 
           <!-- 時間 Badge -->
-          <div class="flex items-center gap-1 text-xs font-bold text-default bg-elevated/60 px-2.5 py-1 rounded-full border border-default/40">
+          <div class="flex items-center gap-1 text-xs font-bold text-default bg-elevated px-2.5 py-1 rounded-full border border-default/60 shadow-2xs">
             <UIcon name="i-lucide-clock" class="size-3.5 text-primary" />
             <span>{{ ev.allDay ? '全天' : (ev.end ? `${ev.start.slice(11, 16)}–${ev.end.slice(11, 16)}` : ev.start.slice(11, 16)) }}</span>
           </div>
         </div>
 
-        <!-- 第二層：標題 (Bold) -->
+        <!-- 第二列：課程 / 活動名稱 -->
         <div class="pl-1">
           <h4 class="text-base font-bold text-default group-hover:text-primary transition-colors leading-snug">
             {{ ev.title }}
           </h4>
         </div>
 
-        <!-- 第三層：地點 & 教室 -->
+        <!-- 第三列：地點 -->
         <div v-if="getEventExtra(ev).location" class="flex items-center gap-1.5 pl-1 text-xs text-muted">
-          <UIcon name="i-lucide-map-pin" class="size-3.5 text-rose-500/80 shrink-0" />
+          <UIcon name="i-lucide-map-pin" class="size-3.5 text-rose-500 shrink-0" />
           <span class="font-medium text-default/90">{{ getEventExtra(ev).location }}</span>
         </div>
 
-        <!-- 第四層：課程角色 Badges (主持/分享/總結/PM) -->
-        <div v-if="getEventExtra(ev).roles.length > 0" class="flex flex-wrap items-center gap-1.5 pl-1 pt-1 border-t border-default/30">
+        <!-- 第四列：人員角色 Chips (主持/分享/總結/PM) -->
+        <div v-if="getEventExtra(ev).roles.length > 0" class="flex flex-wrap items-center gap-1.5 pl-1 pt-1.5 border-t border-default/40">
           <div
             v-for="(r, rIdx) in getEventExtra(ev).roles"
             :key="rIdx"
-            class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md bg-muted/15 text-default border border-default/30"
+            class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-lg bg-muted/15 text-default border border-default/30"
           >
-            <span class="text-muted text-[11px]">{{ r.label }}:</span>
-            <span class="font-semibold text-primary">{{ r.name }}</span>
+            <span class="text-muted text-[11px] font-normal">{{ r.label }}:</span>
+            <span class="font-bold text-primary">{{ r.name }}</span>
           </div>
         </div>
 
-        <!-- 第五層：備註 (如有) -->
+        <!-- 第五列：備註 -->
         <div v-if="getEventExtra(ev).note" class="pl-1 pt-1 text-xs text-muted flex items-start gap-1">
           <UIcon name="i-lucide-align-left" class="size-3.5 mt-0.5 shrink-0 text-muted/60" />
           <span class="line-clamp-2">{{ getEventExtra(ev).note }}</span>
         </div>
 
-        <!-- 點擊展開箭頭提示 -->
         <UIcon name="i-lucide-chevron-right" class="absolute right-3 top-1/2 -translate-y-1/2 size-5 text-muted/30 group-hover:text-primary transition" />
       </div>
     </div>
@@ -476,8 +586,8 @@ function onDayClick(dateStr: string) {
       <div class="size-12 rounded-full bg-primary/10 flex items-center justify-center mb-3">
         <UIcon name="i-lucide-calendar-x" class="size-6 text-primary" />
       </div>
-      <p class="text-base font-semibold text-default">本日無排課或活動</p>
-      <p class="text-xs text-muted mt-1">點選右下角「＋」可立即新增行程</p>
+      <p class="text-base font-bold text-default">該日無排課或活動</p>
+      <p class="text-xs text-muted mt-1">點選右下角「＋」可新增行程</p>
       <UButton
         v-if="props.canEdit"
         icon="i-lucide-plus"
