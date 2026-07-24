@@ -890,28 +890,107 @@ async function onAiImage(e: Event) {
   }
 }
 
-/* ---------- 手機版左右滑動切換上下個月 ---------- */
+/* ---------- 手機版左右滑動切換上下個月 (動態滑動與彈簧動畫) ---------- */
 let touchStartX = 0
 let touchStartY = 0
 let touchStartTime = 0
+let touchIsDragging = false
+const isAnimating = ref(false)
+
+function getHarnessEl(): HTMLElement | null {
+  return document.querySelector('.schedule-calendar .fc-view-harness')
+}
+
+// 執行平滑平移與切換動畫
+function animateMonthChange(direction: 'next' | 'prev') {
+  const harness = getHarnessEl()
+  const api = calendarRef.value?.getApi()
+  if (!api || isAnimating.value) return
+
+  isAnimating.value = true
+  const exitX = direction === 'next' ? '-100%' : '100%'
+  const enterX = direction === 'next' ? '50px' : '-50px'
+
+  if (harness) {
+    harness.style.transition = 'transform 0.18s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.18s ease-in'
+    harness.style.transform = `translateX(${exitX})`
+    harness.style.opacity = '0'
+  }
+
+  setTimeout(() => {
+    if (direction === 'next') {
+      api.next()
+    } else {
+      api.prev()
+    }
+
+    if (harness) {
+      harness.style.transition = 'none'
+      harness.style.transform = `translateX(${enterX})`
+      harness.style.opacity = '0'
+
+      // 強制瀏覽器重繪 reflow
+      void harness.offsetWidth
+
+      harness.style.transition = 'transform 0.26s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.26s ease-out'
+      harness.style.transform = 'translateX(0)'
+      harness.style.opacity = '1'
+    }
+
+    setTimeout(() => {
+      if (harness) {
+        harness.style.transition = ''
+        harness.style.transform = ''
+        harness.style.opacity = ''
+      }
+      isAnimating.value = false
+    }, 270)
+  }, 180)
+}
 
 function handleTouchStart(e: TouchEvent) {
-  if (e.touches.length !== 1) return
+  if (e.touches.length !== 1 || isAnimating.value) return
   const touch = e.touches[0]
   if (!touch) return
 
-  // 點擊事件、彈窗或按鈕時跳過手勢換月
+  // 點擊在彈窗、按鈕、輸入框時跳過手勢換月；月曆格子/日期/事件可正常滑動
   const target = e.target as HTMLElement | null
-  if (target?.closest('.fc-event, .fc-popover, button, input, textarea, select, a')) {
+  if (target?.closest('.fc-popover, button, input, textarea, select')) {
     touchStartX = 0
     touchStartY = 0
     touchStartTime = 0
+    touchIsDragging = false
     return
   }
 
   touchStartX = touch.clientX
   touchStartY = touch.clientY
   touchStartTime = Date.now()
+  touchIsDragging = false
+}
+
+function handleTouchMove(e: TouchEvent) {
+  if (!touchStartTime || e.touches.length !== 1 || isAnimating.value) return
+  const touch = e.touches[0]
+  if (!touch) return
+
+  const deltaX = touch.clientX - touchStartX
+  const deltaY = touch.clientY - touchStartY
+
+  // 當水平滑動距離顯著大於垂直移動時，開啟即時跟手跟隨
+  if (!touchIsDragging && Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 8) {
+    touchIsDragging = true
+  }
+
+  if (touchIsDragging) {
+    const harness = getHarnessEl()
+    if (harness) {
+      harness.style.transition = 'none'
+      const dampenedX = deltaX * 0.7
+      harness.style.transform = `translateX(${dampenedX}px)`
+      harness.style.opacity = `${Math.max(0.65, 1 - Math.abs(deltaX) / 600)}`
+    }
+  }
 }
 
 function handleTouchEnd(e: TouchEvent) {
@@ -926,10 +1005,12 @@ function handleTouchEnd(e: TouchEvent) {
   touchStartX = 0
   touchStartY = 0
   touchStartTime = 0
+  const wasDragging = touchIsDragging
+  touchIsDragging = false
 
-  const minSwipeDistance = 40
+  const minSwipeDistance = 35
   const maxVerticalDistance = 80
-  const maxSwipeTime = 500
+  const maxSwipeTime = 600
 
   if (
     deltaTime <= maxSwipeTime &&
@@ -937,15 +1018,20 @@ function handleTouchEnd(e: TouchEvent) {
     Math.abs(deltaY) <= maxVerticalDistance &&
     Math.abs(deltaX) > Math.abs(deltaY) * 1.2
   ) {
-    const api = calendarRef.value?.getApi()
-    if (!api) return
-
-    if (deltaX < 0) {
-      // 左滑 → 下個月
-      api.next()
-    } else {
-      // 右滑 → 上個月
-      api.prev()
+    const direction = deltaX < 0 ? 'next' : 'prev'
+    animateMonthChange(direction)
+  } else if (wasDragging) {
+    // 水平滑動距離未達門檻，平滑彈回原位 (Spring bounce)
+    const harness = getHarnessEl()
+    if (harness) {
+      harness.style.transition = 'transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.25s ease-out'
+      harness.style.transform = 'translateX(0)'
+      harness.style.opacity = '1'
+      setTimeout(() => {
+        harness.style.transition = ''
+        harness.style.transform = ''
+        harness.style.opacity = ''
+      }, 250)
     }
   }
 }
@@ -954,6 +1040,18 @@ function handleTouchCancel() {
   touchStartX = 0
   touchStartY = 0
   touchStartTime = 0
+  touchIsDragging = false
+  const harness = getHarnessEl()
+  if (harness) {
+    harness.style.transition = 'transform 0.2s ease-out, opacity 0.2s ease-out'
+    harness.style.transform = 'translateX(0)'
+    harness.style.opacity = '1'
+    setTimeout(() => {
+      harness.style.transition = ''
+      harness.style.transform = ''
+      harness.style.opacity = ''
+    }, 200)
+  }
 }
 </script>
 
@@ -989,18 +1087,13 @@ function handleTouchCancel() {
         </UButton>
       </div>
     </div>
-
-    <p v-if="canEdit" class="text-sm text-muted mb-4">
-      <UIcon name="i-lucide-mouse-pointer-click" class="size-4 align-text-bottom" />
-      點空白日期可新增、點項目可編輯、直接拖曳可改日期（不重複）或星期（每週重複）。
-    </p>
-
     <div
       class="schedule-calendar"
       :class="{ 'is-editable': canEdit }"
-      @touchstart="handleTouchStart"
-      @touchend="handleTouchEnd"
-      @touchcancel="handleTouchCancel"
+      @touchstart.capture="handleTouchStart"
+      @touchmove.capture="handleTouchMove"
+      @touchend.capture="handleTouchEnd"
+      @touchcancel.capture="handleTouchCancel"
     >
       <ClientOnly>
         <FullCalendar ref="calendarRef" :options="calendarOptions" />
@@ -1351,7 +1444,9 @@ function handleTouchCancel() {
 </template>
 
 <style scoped>
-.schedule-calendar {
+.schedule-calendar,
+.schedule-calendar :deep(.fc),
+.schedule-calendar :deep(.fc-view-harness) {
   touch-action: pan-y;
 }
 
