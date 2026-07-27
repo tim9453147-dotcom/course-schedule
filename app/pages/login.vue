@@ -5,7 +5,6 @@ const schema = z.object({
   username: z.string().min(1, '請輸入帳號'),
   password: z.string().min(1, '請輸入密碼')
 })
-type Schema = z.output<typeof schema>
 
 const state = reactive({ username: '', password: '' })
 const loading = ref(false)
@@ -37,12 +36,27 @@ async function onSubmit() {
         </h1>
       </template>
 
-      <UForm :schema="schema" :state="state" class="space-y-4" @submit="onSubmit">
-        <UFormField label="帳號" name="username">
-          <UInput v-model="state.username" class="w-full" autocomplete="username" />
+      <UForm
+        :schema="schema"
+        :state="state"
+        class="space-y-4"
+        @submit="onSubmit"
+      >
+        <UFormField
+          label="帳號"
+          name="username"
+        >
+          <UInput
+            v-model="state.username"
+            class="w-full"
+            autocomplete="username"
+          />
         </UFormField>
 
-        <UFormField label="密碼" name="password">
+        <UFormField
+          label="密碼"
+          name="password"
+        >
           <UInput
             v-model="state.password"
             type="password"
@@ -51,7 +65,11 @@ async function onSubmit() {
           />
         </UFormField>
 
-        <UButton type="submit" block :loading="loading">
+        <UButton
+          type="submit"
+          block
+          :loading="loading"
+        >
           登入
         </UButton>
 

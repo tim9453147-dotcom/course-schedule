@@ -11,11 +11,6 @@ export default defineNuxtConfig({
     enabled: true
   },
 
-  // 本機開發伺服器 port
-  devServer: {
-    port: 1125
-  },
-
   css: ['~/assets/css/main.css'],
 
   // 深/淺色由「季節×時段」主題於執行期驅動（app/plugins/seasonal-theme.ts）。
@@ -26,6 +21,31 @@ export default defineNuxtConfig({
     storage: 'cookie',
     storageKey: 'cs-color-mode'
   },
+
+  runtimeConfig: {
+    // 伺服器端可用，預設空字串，由環境變數覆寫：
+    //   NUXT_ADMIN_USERNAME / NUXT_ADMIN_PASSWORD
+    // session 加密用 NUXT_SESSION_PASSWORD（nuxt-auth-utils 自動讀取）
+    adminUsername: '',
+    adminPassword: '',
+    // Gemini 圖片辨識匯入（免費方案）：NUXT_GEMINI_API_KEY / NUXT_GEMINI_MODEL
+    geminiApiKey: '',
+    geminiModel: 'gemini-2.5-flash',
+    // LINE Messaging API（課表異動通知，見 specs/0025）：
+    //   NUXT_LINE_CHANNEL_ACCESS_TOKEN（push 訊息）
+    //   NUXT_LINE_CHANNEL_SECRET（webhook 簽章驗證）
+    lineChannelAccessToken: '',
+    lineChannelSecret: '',
+    // 每日課表異動彙整通知端點的 Bearer 金鑰（見 specs/0025）：NUXT_NOTIFY_CRON_SECRET
+    notifyCronSecret: ''
+  },
+
+  // 本機開發伺服器 port
+  devServer: {
+    port: 1125
+  },
+
+  compatibilityDate: '2025-01-15',
 
   // 部署到 Cloudflare Pages：build 後產生 dist/ (含 _worker.js)
   nitro: {
@@ -53,26 +73,6 @@ export default defineNuxtConfig({
       }
     }
   },
-
-  runtimeConfig: {
-    // 伺服器端可用，預設空字串，由環境變數覆寫：
-    //   NUXT_ADMIN_USERNAME / NUXT_ADMIN_PASSWORD
-    // session 加密用 NUXT_SESSION_PASSWORD（nuxt-auth-utils 自動讀取）
-    adminUsername: '',
-    adminPassword: '',
-    // Gemini 圖片辨識匯入（免費方案）：NUXT_GEMINI_API_KEY / NUXT_GEMINI_MODEL
-    geminiApiKey: '',
-    geminiModel: 'gemini-2.5-flash',
-    // LINE Messaging API（課表異動通知，見 specs/0025）：
-    //   NUXT_LINE_CHANNEL_ACCESS_TOKEN（push 訊息）
-    //   NUXT_LINE_CHANNEL_SECRET（webhook 簽章驗證）
-    lineChannelAccessToken: '',
-    lineChannelSecret: '',
-    // 每日課表異動彙整通知端點的 Bearer 金鑰（見 specs/0025）：NUXT_NOTIFY_CRON_SECRET
-    notifyCronSecret: ''
-  },
-
-  compatibilityDate: '2025-01-15',
 
   eslint: {
     config: {

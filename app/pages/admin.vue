@@ -103,31 +103,53 @@ async function removeUser(u: AdminUser) {
     <section class="space-y-3">
       <h2 class="text-lg font-semibold flex items-center gap-2">
         待審核申請
-        <UBadge v-if="pendingUsers.length" color="warning" variant="soft">
+        <UBadge
+          v-if="pendingUsers.length"
+          color="warning"
+          variant="soft"
+        >
           {{ pendingUsers.length }}
         </UBadge>
       </h2>
 
-      <p v-if="!pendingUsers.length" class="text-sm text-muted">
+      <p
+        v-if="!pendingUsers.length"
+        class="text-sm text-muted"
+      >
         目前沒有待審核的申請。
       </p>
 
-      <UCard v-for="u in pendingUsers" :key="u.id">
+      <UCard
+        v-for="u in pendingUsers"
+        :key="u.id"
+      >
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div class="space-y-1">
             <p class="font-semibold">
               {{ u.displayName }}
               <span class="text-muted font-normal">（{{ u.username }}）</span>
             </p>
-            <p v-if="u.note" class="text-sm text-muted">
+            <p
+              v-if="u.note"
+              class="text-sm text-muted"
+            >
               說明：{{ u.note }}
             </p>
           </div>
           <div class="flex gap-2">
-            <UButton color="success" size="sm" @click="setStatus(u, 'approved', '已通過，請設定可用頁面')">
+            <UButton
+              color="success"
+              size="sm"
+              @click="setStatus(u, 'approved', '已通過，請設定可用頁面')"
+            >
               通過
             </UButton>
-            <UButton color="neutral" variant="soft" size="sm" @click="setStatus(u, 'rejected', '已拒絕')">
+            <UButton
+              color="neutral"
+              variant="soft"
+              size="sm"
+              @click="setStatus(u, 'rejected', '已拒絕')"
+            >
               拒絕
             </UButton>
           </div>
@@ -141,17 +163,26 @@ async function removeUser(u: AdminUser) {
         所有帳號
       </h2>
 
-      <p v-if="!otherUsers.length" class="text-sm text-muted">
+      <p
+        v-if="!otherUsers.length"
+        class="text-sm text-muted"
+      >
         尚無已審核的帳號。
       </p>
 
-      <UCard v-for="u in otherUsers" :key="u.id">
+      <UCard
+        v-for="u in otherUsers"
+        :key="u.id"
+      >
         <div class="space-y-3">
           <div class="flex flex-wrap items-center justify-between gap-3">
             <p class="font-semibold flex items-center gap-2">
               {{ u.displayName }}
               <span class="text-muted font-normal">（{{ u.username }}）</span>
-              <UBadge :color="statusMeta[u.status]?.color" variant="soft">
+              <UBadge
+                :color="statusMeta[u.status]?.color"
+                variant="soft"
+              >
                 {{ statusMeta[u.status]?.label }}
               </UBadge>
             </p>
@@ -174,10 +205,20 @@ async function removeUser(u: AdminUser) {
               >
                 啟用
               </UButton>
-              <UButton color="neutral" variant="soft" size="sm" @click="resetPassword(u)">
+              <UButton
+                color="neutral"
+                variant="soft"
+                size="sm"
+                @click="resetPassword(u)"
+              >
                 重設密碼
               </UButton>
-              <UButton color="error" variant="ghost" size="sm" @click="removeUser(u)">
+              <UButton
+                color="error"
+                variant="ghost"
+                size="sm"
+                @click="removeUser(u)"
+              >
                 刪除
               </UButton>
             </div>
@@ -225,10 +266,17 @@ async function removeUser(u: AdminUser) {
         :ui="{ base: 'font-mono' }"
       />
       <div class="flex gap-2">
-        <UButton :loading="aiSaving" @click="saveAiPrompt">
+        <UButton
+          :loading="aiSaving"
+          @click="saveAiPrompt"
+        >
           儲存
         </UButton>
-        <UButton color="neutral" variant="ghost" @click="aiPrompt = DEFAULT_AI_EXTRACT_PROMPT">
+        <UButton
+          color="neutral"
+          variant="ghost"
+          @click="aiPrompt = DEFAULT_AI_EXTRACT_PROMPT"
+        >
           還原預設
         </UButton>
       </div>

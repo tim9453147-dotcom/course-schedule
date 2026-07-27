@@ -62,3 +62,42 @@ body {
 :root[data-season="winter"][data-daypart="day"] { --app-bg: linear-gradient(160deg, #e0e7ff, #f1f5f9); }
 :root[data-season="winter"][data-daypart="dusk"] { --app-bg: linear-gradient(160deg, #3730a3, #6d28d9 55%, #0f172a); }
 :root[data-season="winter"][data-daypart="night"] { --app-bg: linear-gradient(160deg, #1e1b4b, #020617); }
+
+/* 隱藏滾動條（常用於手機版水平捲動頁籤） */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ── 手機版 FullCalendar 樣式優化 ── */
+@media (max-width: 639px) {
+  .schedule-calendar .fc .fc-toolbar {
+    margin-bottom: 0.5rem !important;
+    gap: 0.5rem;
+  }
+  .schedule-calendar .fc .fc-toolbar-title {
+    font-size: 1rem !important;
+    font-weight: 600;
+  }
+  .schedule-calendar .fc .fc-button {
+    padding: 0.25rem 0.5rem !important;
+    font-size: 0.75rem !important;
+    border-radius: 0.375rem !important;
+  }
+  .schedule-calendar .fc .fc-col-header-cell-cushion {
+    padding: 4px 2px !important;
+    font-size: 0.7rem !important;
+  }
+  .schedule-calendar .fc .fc-daygrid-day-number {
+    padding: 2px 4px !important;
+    font-size: 0.7rem !important;
+  }
+  .schedule-calendar .fc-daygrid-event {
+    font-size: 0.7rem !important;
+    padding: 1px 2px !important;
+    border-radius: 4px !important;
+  }
+}

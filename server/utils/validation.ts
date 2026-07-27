@@ -184,7 +184,6 @@ export const followUpLogSchema = z.object({
 
 export type FollowUpLogInput = z.infer<typeof followUpLogSchema>
 
-
 // 每日任務（個人名單表）──────────────────────────────────
 // 每一列＝把某位總名單對象（contactId）放進某個區塊；姓名與延伸欄位皆來自該 contact。
 export const prospectInputSchema = z.object({
@@ -227,7 +226,10 @@ export const gatheringInputSchema = z.object({
     v => (v === '' || v === null || v === undefined ? null : v),
     z.coerce.number().int().nullable()
   ).default(null),
-  note: z.string().trim().nullish()
+  note: z.string().trim().nullish(),
+  // 同步至課表設定
+  syncToCalendar: z.boolean().default(false),
+  classroom: z.string().trim().optional().default('中壢')
 })
 
 export type GatheringInput = z.infer<typeof gatheringInputSchema>

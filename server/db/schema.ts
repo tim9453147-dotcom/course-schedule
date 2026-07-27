@@ -100,7 +100,7 @@ export const rentals = sqliteTable('rentals', {
   createdAt: integer('created_at')
     .notNull()
     .$defaultFn(() => Math.floor(Date.now() / 1000))
-}, (table) => ({
+}, table => ({
   equipmentIdIdx: index('rentals_equipment_id_idx').on(table.equipmentId)
 }))
 
@@ -173,7 +173,7 @@ export const contacts = sqliteTable('contacts', {
   updatedAt: integer('updated_at')
     .notNull()
     .$defaultFn(() => Math.floor(Date.now() / 1000))
-}, (table) => ({
+}, table => ({
   userIdIdx: index('contacts_user_id_idx').on(table.userId),
   nextFollowUpIdx: index('contacts_next_follow_up_idx').on(table.nextFollowUp)
 }))
@@ -190,7 +190,7 @@ export const contactStages = sqliteTable('contact_stages', {
   createdAt: integer('created_at')
     .notNull()
     .$defaultFn(() => Math.floor(Date.now() / 1000))
-}, (table) => ({
+}, table => ({
   userIdIdx: index('contact_stages_user_id_idx').on(table.userId)
 }))
 
@@ -204,7 +204,7 @@ export const contactOptions = sqliteTable('contact_options', {
   createdAt: integer('created_at')
     .notNull()
     .$defaultFn(() => Math.floor(Date.now() / 1000))
-}, (table) => ({
+}, table => ({
   userIdIdx: index('contact_options_user_id_idx').on(table.userId)
 }))
 
@@ -221,7 +221,7 @@ export const followUpLogs = sqliteTable('follow_up_logs', {
   createdAt: integer('created_at')
     .notNull()
     .$defaultFn(() => Math.floor(Date.now() / 1000))
-}, (table) => ({
+}, table => ({
   contactIdIdx: index('follow_up_logs_contact_id_idx').on(table.contactId)
 }))
 
@@ -247,7 +247,7 @@ export const prospects = sqliteTable('prospects', {
   createdAt: integer('created_at')
     .notNull()
     .$defaultFn(() => Math.floor(Date.now() / 1000))
-}, (table) => ({
+}, table => ({
   userIdIdx: index('prospects_user_id_idx').on(table.userId),
   contactIdIdx: index('prospects_contact_id_idx').on(table.contactId)
 }))
@@ -339,7 +339,7 @@ export const scheduleChanges = sqliteTable('schedule_changes', {
     .notNull()
     .$defaultFn(() => Math.floor(Date.now() / 1000)),
   notifiedAt: integer('notified_at')
-}, (table) => ({
+}, table => ({
   notifiedAtIdx: index('schedule_changes_notified_at_idx').on(table.notifiedAt)
 }))
 
