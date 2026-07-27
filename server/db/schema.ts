@@ -208,6 +208,20 @@ export const contactOptions = sqliteTable('contact_options', {
   userIdIdx: index('contact_options_user_id_idx').on(table.userId)
 }))
 
+// 名單「地點／位置」選項（每位使用者各自一份，可增/刪；預設只有中壢）。
+// 擁有者規則同 contacts/contact_options：一般使用者 users.id，超級管理員 NULL。
+export const contactLocations = sqliteTable('contact_locations', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').references(() => users.id),
+  // 地點名稱
+  label: text('label').notNull(),
+  createdAt: integer('created_at')
+    .notNull()
+    .$defaultFn(() => Math.floor(Date.now() / 1000))
+}, table => ({
+  userIdIdx: index('contact_locations_user_id_idx').on(table.userId)
+}))
+
 // 跟進紀錄（時間軸，一筆名單對多筆紀錄）
 export const followUpLogs = sqliteTable('follow_up_logs', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -388,3 +402,5 @@ export type Recipe = typeof recipes.$inferSelect
 export type NewRecipe = typeof recipes.$inferInsert
 export type ContactOption = typeof contactOptions.$inferSelect
 export type NewContactOption = typeof contactOptions.$inferInsert
+export type ContactLocation = typeof contactLocations.$inferSelect
+export type NewContactLocation = typeof contactLocations.$inferInsert

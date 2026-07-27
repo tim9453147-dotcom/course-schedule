@@ -15,7 +15,7 @@ const tabItems = [
 </script>
 
 <template>
-  <UContainer class="py-8">
+  <UContainer class="py-4 sm:py-8 px-3 sm:px-6">
     <UTabs
       v-model="activeTab"
       :items="tabItems"

@@ -176,6 +176,13 @@ export const contactOptionInputSchema = z.object({
 
 export type ContactOptionInput = z.infer<typeof contactOptionInputSchema>
 
+// 名單地點選項：新增
+export const contactLocationInputSchema = z.object({
+  label: z.string().trim().min(1, '請輸入地點名稱')
+})
+
+export type ContactLocationInput = z.infer<typeof contactLocationInputSchema>
+
 // 跟進紀錄輸入驗證
 export const followUpLogSchema = z.object({
   date,

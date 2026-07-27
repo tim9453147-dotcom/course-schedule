@@ -8,6 +8,31 @@ const confirm = useConfirm()
 const { data: contacts, refresh: refreshContacts } = await useFetch<Contact[]>('/api/contacts', { key: 'global-contacts', deep: true })
 // 進度階段（每位使用者各自管理；後端首次為空時會種子預設）
 const { data: stages, refresh: refreshStages } = await useFetch<ContactStage[]>('/api/contact-stages', { deep: true })
+// 地點選項（每位使用者各自管理；預設只有中壢）
+const { data: locationOptions, refresh: refreshLocationOptions } = await useFetch<ContactLocation[]>('/api/contact-locations', { deep: true })
+
+async function addLocationOption(label: string) {
+  try {
+    const created = await $fetch<ContactLocation>('/api/contact-locations', { method: 'POST', body: { label } })
+    if (!(locationOptions.value ?? []).some(o => o.id === created.id)) {
+      locationOptions.value = [...(locationOptions.value ?? []), created]
+    }
+  } catch {
+    notify.error('新增地點失敗')
+    await refreshLocationOptions()
+  }
+}
+
+async function removeLocationOption(id: number) {
+  const prev = locationOptions.value ?? []
+  locationOptions.value = prev.filter(o => o.id !== id) // 樂觀移除
+  try {
+    await $fetch(`/api/contact-locations/${id}`, { method: 'DELETE' })
+  } catch {
+    notify.error('刪除地點失敗')
+    await refreshLocationOptions()
+  }
+}
 
 /* ---------- 篩選 / 搜尋 ---------- */
 const searchInput = ref('')
@@ -19,10 +44,14 @@ watch(searchInput, (v) => {
     search.value = v
   }, 400)
 })
+const LOCATION_NONE = '__none__'
+
 // 'all'=不限；'broached'/'unbroached'=破題狀態；其餘為階段 id（字串）。
 // reka-ui 的 SelectItem 不允許空字串值，故用 'all' 當哨兵。
 const stepFilter = ref<string>('all')
 const freqFilter = ref('all')
+const typeFilter = ref<string>('all')
+const locationFilter = ref<string>('all')
 const overdueOnly = ref(false)
 const sortByNext = ref(false)
 const mobileFilterOpen = ref(false)
@@ -37,10 +66,20 @@ const freqFilterItems = [
   { label: '全部頻率', value: 'all' },
   ...FOLLOW_UP_FREQ_OPTIONS.map(f => ({ label: f, value: f }))
 ]
+const typeFilterItems = [
+  { label: '全部類型', value: 'all' },
+  { label: '顧客', value: 'customer' },
+  { label: '準領導人', value: 'leader' }
+]
+const locationFilterItems = computed(() => [
+  { label: '全部地點', value: 'all' },
+  { label: '未設定', value: LOCATION_NONE },
+  ...(locationOptions.value ?? []).map(o => ({ label: o.label, value: o.label }))
+])
 const freqFormItems = FOLLOW_UP_FREQ_OPTIONS.map(f => ({ label: f, value: f }))
 
 const hasActiveFilter = computed(() =>
-  overdueOnly.value || stepFilter.value !== 'all' || freqFilter.value !== 'all' || !!searchInput.value
+  overdueOnly.value || stepFilter.value !== 'all' || freqFilter.value !== 'all' || typeFilter.value !== 'all' || locationFilter.value !== 'all' || !!searchInput.value
 )
 
 function clearAllFilters() {
@@ -48,7 +87,16 @@ function clearAllFilters() {
   search.value = ''
   stepFilter.value = 'all'
   freqFilter.value = 'all'
+  typeFilter.value = 'all'
+  locationFilter.value = 'all'
   overdueOnly.value = false
+}
+
+function getAvatarGradient(c: Contact) {
+  if (c.contactType === 'leader') {
+    return 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-bold'
+  }
+  return 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white font-bold'
 }
 
 function stageCount(stageId: number) {
@@ -84,7 +132,10 @@ const filtered = computed(() => {
     const sid = Number(stepFilter.value)
     list = list.filter(c => (c.completedStages ?? []).includes(sid))
   }
+  if (typeFilter.value !== 'all') list = list.filter(c => c.contactType === typeFilter.value)
   if (freqFilter.value !== 'all') list = list.filter(c => c.followUpFreq === freqFilter.value)
+  if (locationFilter.value === LOCATION_NONE) list = list.filter(c => !c.location)
+  else if (locationFilter.value !== 'all') list = list.filter(c => c.location === locationFilter.value)
   if (overdueOnly.value) list = list.filter(c => isOverdue(c.nextFollowUp))
 
   if (sortByNext.value) {
@@ -178,8 +229,25 @@ async function changeFreq(c: Contact, value: string) {
   }
 }
 
-// inline 文字欄位（姓名／位置）即時更新
-async function patchField(c: Contact, key: 'name' | 'location') {
+async function changeLocation(c: Contact, value: string) {
+  const nextVal = value.trim() || null
+  if ((c.location ?? null) === nextVal) return
+  const prev = c.location
+  c.location = nextVal // 樂觀更新
+  try {
+    const updated = await $fetch<Contact>(`/api/contacts/${c.id}`, {
+      method: 'PATCH',
+      body: { location: nextVal ?? '' }
+    })
+    Object.assign(c, updated)
+  } catch {
+    c.location = prev
+    notify.error('更新地點失敗')
+  }
+}
+
+// inline 文字欄位（姓名）即時更新
+async function patchField(c: Contact, key: 'name') {
   try {
     const updated = await $fetch<Contact>(`/api/contacts/${c.id}`, {
       method: 'PATCH',
@@ -299,7 +367,11 @@ async function save() {
   }
   saving.value = true
   try {
-    await $fetch('/api/contacts', { method: 'POST', body: form })
+    const payload = {
+      ...form,
+      location: form.location.trim() || null
+    }
+    await $fetch('/api/contacts', { method: 'POST', body: payload })
     notify.success('已新增')
     formOpen.value = false
     await refreshContacts()
@@ -337,12 +409,12 @@ function onMetaSaved(updated: Contact) {
 
 <template>
   <div>
-    <div class="flex items-center justify-between mb-4">
-      <div class="flex items-center gap-3">
+    <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+      <div class="flex items-center gap-2">
         <h1 class="text-xl font-bold">
           客戶名單 CRM
         </h1>
-        <div class="hidden sm:flex items-center gap-1.5 text-xs text-muted">
+        <div class="flex items-center gap-1.5 text-xs text-muted">
           <UBadge
             color="neutral"
             variant="subtle"
@@ -356,20 +428,22 @@ function onMetaSaved(updated: Contact) {
           >· {{ stats.overdue }} 位逾期</span>
         </div>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-1.5">
         <UButton
           icon="i-lucide-list-checks"
           color="neutral"
           variant="outline"
+          size="sm"
           @click="stagesModalOpen = true"
         >
-          <span class="hidden sm:inline">管理階段</span>
+          <span class="text-xs sm:text-sm">管理階段</span>
         </UButton>
         <UButton
           icon="i-lucide-user-plus"
+          size="sm"
           @click="openCreate"
         >
-          <span class="hidden sm:inline">新增名單</span>
+          <span class="text-xs sm:text-sm">新增名單</span>
         </UButton>
       </div>
     </div>
@@ -402,9 +476,96 @@ function onMetaSaved(updated: Contact) {
     </div>
 
     <!-- ===== 手機版卡片佈局 ===== -->
-    <div class="sm:hidden">
+    <div class="sm:hidden space-y-3">
+      <!-- 手機頂部快捷標籤列 (Horizontal Scrollable Quick Filter Chips) -->
+      <div class="flex items-center gap-1.5 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-none text-xs">
+        <button
+          type="button"
+          class="shrink-0 px-3 py-1.5 rounded-full font-medium transition-all cursor-pointer border"
+          :class="stepFilter === 'all' && freqFilter === 'all' && typeFilter === 'all' && !overdueOnly
+            ? 'bg-primary text-inverted border-primary font-semibold shadow-2xs'
+            : 'bg-elevated/40 text-muted border-default hover:border-primary/40'"
+          @click="clearAllFilters"
+        >
+          全部 ({{ stats.total }})
+        </button>
+
+        <button
+          v-if="stats.overdue > 0"
+          type="button"
+          class="shrink-0 px-3 py-1.5 rounded-full font-medium transition-all cursor-pointer border flex items-center gap-1"
+          :class="overdueOnly
+            ? 'bg-error text-inverted border-error font-semibold shadow-2xs'
+            : 'bg-error/10 text-error border-error/30 hover:bg-error/20'"
+          @click="overdueOnly = !overdueOnly"
+        >
+          <UIcon
+            name="i-lucide-alarm-clock"
+            class="size-3.5"
+          />
+          逾期 ({{ stats.overdue }})
+        </button>
+
+        <button
+          type="button"
+          class="shrink-0 px-3 py-1.5 rounded-full font-medium transition-all cursor-pointer border"
+          :class="typeFilter === 'customer'
+            ? 'bg-emerald-600 text-white border-emerald-600 font-semibold shadow-2xs'
+            : 'bg-elevated/40 text-muted border-default hover:border-emerald-500/40'"
+          @click="typeFilter = typeFilter === 'customer' ? 'all' : 'customer'"
+        >
+          顧客
+        </button>
+
+        <button
+          type="button"
+          class="shrink-0 px-3 py-1.5 rounded-full font-medium transition-all cursor-pointer border"
+          :class="typeFilter === 'leader'
+            ? 'bg-indigo-600 text-white border-indigo-600 font-semibold shadow-2xs'
+            : 'bg-elevated/40 text-muted border-default hover:border-indigo-500/40'"
+          @click="typeFilter = typeFilter === 'leader' ? 'all' : 'leader'"
+        >
+          準領導人
+        </button>
+
+        <button
+          type="button"
+          class="shrink-0 px-3 py-1.5 rounded-full font-medium transition-all cursor-pointer border"
+          :class="stepFilter === 'unbroached'
+            ? 'bg-amber-600 text-white border-amber-600 font-semibold shadow-2xs'
+            : 'bg-elevated/40 text-muted border-default hover:border-amber-500/40'"
+          @click="stepFilter = stepFilter === 'unbroached' ? 'all' : 'unbroached'"
+        >
+          未破題
+        </button>
+
+        <button
+          type="button"
+          class="shrink-0 px-3 py-1.5 rounded-full font-medium transition-all cursor-pointer border"
+          :class="stepFilter === 'broached'
+            ? 'bg-emerald-600 text-white border-emerald-600 font-semibold shadow-2xs'
+            : 'bg-elevated/40 text-muted border-default hover:border-emerald-500/40'"
+          @click="stepFilter = stepFilter === 'broached' ? 'all' : 'broached'"
+        >
+          已破題
+        </button>
+
+        <button
+          v-for="s in (stages ?? [])"
+          :key="s.id"
+          type="button"
+          class="shrink-0 px-3 py-1.5 rounded-full font-medium transition-all cursor-pointer border"
+          :class="stepFilter === String(s.id)
+            ? 'bg-primary text-inverted border-primary font-semibold shadow-2xs'
+            : 'bg-elevated/40 text-muted border-default hover:border-primary/40'"
+          @click="stepFilter = stepFilter === String(s.id) ? 'all' : String(s.id)"
+        >
+          {{ s.label }} ({{ stageCount(s.id) }})
+        </button>
+      </div>
+
       <!-- 手機搜尋 + 篩選按鈕 -->
-      <div class="flex items-center gap-2 mb-3">
+      <div class="flex items-center gap-2">
         <UInput
           v-model="searchInput"
           icon="i-lucide-search"
@@ -419,61 +580,81 @@ function onMetaSaved(updated: Contact) {
           size="sm"
           @click="mobileFilterOpen = !mobileFilterOpen"
         >
-          篩選
+          進階篩選
         </UButton>
       </div>
 
       <!-- 手機篩選面板（展開） -->
       <div
         v-if="mobileFilterOpen"
-        class="mb-3 p-3 border border-default rounded-lg bg-elevated/30 space-y-3"
+        class="p-3.5 border border-default rounded-xl bg-elevated/40 space-y-3 shadow-xs"
       >
         <div class="flex items-center justify-between">
-          <span class="text-sm font-medium">篩選條件</span>
+          <span class="text-sm font-semibold flex items-center gap-1.5">
+            <UIcon
+              name="i-lucide-filter"
+              class="size-4 text-primary"
+            />
+            進階篩選條件
+          </span>
           <UButton
             v-if="hasActiveFilter"
             color="neutral"
             variant="ghost"
             size="xs"
-            icon="i-lucide-x"
+            icon="i-lucide-rotate-ccw"
             @click="clearAllFilters"
           >
-            重設
+            重設篩選
           </UButton>
         </div>
         <div class="grid grid-cols-2 gap-2">
-          <USelect
-            v-model="stepFilter"
-            :items="stepFilterItems"
-            size="sm"
-          />
-          <USelect
-            v-model="freqFilter"
-            :items="freqFilterItems"
-            size="sm"
-          />
-        </div>
-        <div class="flex items-center gap-3">
-          <button
-            type="button"
-            class="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-full border cursor-pointer transition-colors"
-            :class="overdueOnly
-              ? 'border-error bg-error/10 text-error'
-              : 'border-default text-dimmed hover:border-error/40'"
-            @click="overdueOnly = !overdueOnly"
-          >
-            <UIcon
-              name="i-lucide-alarm-clock"
-              class="size-3.5"
+          <div class="space-y-1">
+            <span class="text-xs text-muted font-medium">進度階段</span>
+            <USelect
+              v-model="stepFilter"
+              :items="stepFilterItems"
+              size="sm"
+              class="w-full"
             />
-            僅逾期
-          </button>
+          </div>
+          <div class="space-y-1">
+            <span class="text-xs text-muted font-medium">跟進頻率</span>
+            <USelect
+              v-model="freqFilter"
+              :items="freqFilterItems"
+              size="sm"
+              class="w-full"
+            />
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div class="space-y-1">
+            <span class="text-xs text-muted font-medium">名單類型</span>
+            <USelect
+              v-model="typeFilter"
+              :items="typeFilterItems"
+              size="sm"
+              class="w-full"
+            />
+          </div>
+          <div class="space-y-1">
+            <span class="text-xs text-muted font-medium">地點</span>
+            <USelect
+              v-model="locationFilter"
+              :items="locationFilterItems"
+              size="sm"
+              class="w-full"
+            />
+          </div>
+        </div>
+        <div class="flex justify-end pt-1">
           <button
             type="button"
-            class="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-full border cursor-pointer transition-colors"
+            class="flex items-center justify-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border cursor-pointer transition-colors h-8"
             :class="sortByNext
-              ? 'border-primary bg-primary/10 text-primary'
-              : 'border-default text-dimmed hover:border-primary/40'"
+              ? 'border-primary bg-primary/10 text-primary font-semibold'
+              : 'border-default text-muted hover:border-primary/40'"
             @click="sortByNext = !sortByNext"
           >
             <UIcon
@@ -485,65 +666,114 @@ function onMetaSaved(updated: Contact) {
         </div>
       </div>
 
-      <!-- 手機統計摘要 -->
-      <div class="flex items-center gap-1.5 mb-3 text-xs text-muted sm:hidden">
-        <UBadge
-          color="neutral"
-          variant="subtle"
-          size="sm"
-        >
-          {{ stats.total }} 人
-        </UBadge>
-        <span
-          v-if="stats.overdue > 0"
-          class="text-error font-medium"
-        >· {{ stats.overdue }} 位逾期</span>
-      </div>
-
       <!-- 手機空狀態 -->
       <div
         v-if="!filtered.length"
-        class="text-muted text-center py-16"
+        class="text-muted text-center py-16 border border-dashed border-default rounded-xl bg-elevated/20"
       >
-        {{ (contacts?.length ?? 0) ? '沒有符合篩選的名單。' : '還沒有名單，點右上角「新增名單」開始。' }}
+        <UIcon
+          name="i-lucide-user-x"
+          class="size-8 mx-auto mb-2 text-dimmed"
+        />
+        <p>{{ (contacts?.length ?? 0) ? '沒有符合篩選的名單。' : '還沒有名單，點右上角「新增名單」開始。' }}</p>
+        <UButton
+          v-if="hasActiveFilter"
+          color="neutral"
+          variant="ghost"
+          size="sm"
+          class="mt-2"
+          @click="clearAllFilters"
+        >
+          清除所有篩選
+        </UButton>
       </div>
 
       <!-- 手機卡片列表 -->
       <div
         v-else
-        class="space-y-2"
+        class="space-y-3"
       >
         <div
           v-for="c in filtered"
           :key="c.id"
-          class="border border-default rounded-lg p-3 hover:bg-elevated/30 transition-colors"
+          class="bg-surface/card border border-default rounded-xl p-3.5 shadow-2xs hover:border-primary/40 transition-all space-y-3"
         >
-          <!-- 卡片頭：姓名 + 操作 -->
-          <div class="flex items-center justify-between mb-2">
-            <div class="flex items-center gap-2">
-              <UInput
-                :model-value="c.name"
-                variant="ghost"
-                size="sm"
-                class="w-20 font-bold"
-                @update:model-value="c.name = ($event as string)"
-                @change="patchField(c, 'name')"
-              />
-              <UBadge
-                v-if="isOverdue(c.nextFollowUp)"
-                color="error"
-                variant="solid"
-                size="sm"
+          <!-- 卡片第一層：頭像 + 姓名/位置 + 類型切換 + 功能選單 -->
+          <div class="flex items-start justify-between gap-2">
+            <div class="flex items-center gap-2.5 min-w-0 flex-1">
+              <!-- 彩色雙字頭像 -->
+              <div
+                class="size-10 rounded-full flex items-center justify-center text-sm shrink-0 cursor-pointer shadow-2xs"
+                :class="getAvatarGradient(c)"
+                title="點擊編輯明細"
+                @click="openMeta(c)"
               >
-                逾期
-              </UBadge>
+                {{ (c.name || '?').slice(0, 1).toUpperCase() }}
+              </div>
+
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <UInput
+                    :model-value="c.name"
+                    variant="ghost"
+                    size="sm"
+                    class="font-bold text-base p-0 h-auto focus:bg-elevated/50 rounded max-w-32"
+                    @update:model-value="c.name = ($event as string)"
+                    @change="patchField(c, 'name')"
+                  />
+                  <UBadge
+                    v-if="isOverdue(c.nextFollowUp)"
+                    color="error"
+                    variant="solid"
+                    size="xs"
+                    class="shrink-0"
+                  >
+                    逾期
+                  </UBadge>
+                </div>
+                <div class="flex items-center gap-1 text-xs text-muted mt-0.5">
+                  <UIcon
+                    name="i-lucide-map-pin"
+                    class="size-3 text-dimmed shrink-0"
+                  />
+                  <LocationSelect
+                    :model-value="c.location ?? ''"
+                    :options="locationOptions ?? []"
+                    class="w-32"
+                    @update:model-value="changeLocation(c, $event)"
+                    @add="addLocationOption"
+                    @delete="removeLocationOption"
+                  />
+                </div>
+              </div>
             </div>
-            <div class="flex gap-1">
+
+            <!-- 右上角：顧客/準領導人 切換與操作 -->
+            <div class="flex items-center gap-1 shrink-0">
+              <div class="inline-flex rounded-full border border-default p-0.5 bg-elevated/40 text-xs font-medium">
+                <button
+                  type="button"
+                  class="px-2 py-0.5 rounded-full cursor-pointer transition-all text-xs"
+                  :class="c.contactType === 'customer' ? 'bg-emerald-600 text-white font-semibold shadow-2xs' : 'text-dimmed hover:text-foreground'"
+                  @click="setContactType(c, 'customer')"
+                >
+                  顧客
+                </button>
+                <button
+                  type="button"
+                  class="px-2 py-0.5 rounded-full cursor-pointer transition-all text-xs"
+                  :class="c.contactType === 'leader' ? 'bg-indigo-600 text-white font-semibold shadow-2xs' : 'text-dimmed hover:text-foreground'"
+                  @click="setContactType(c, 'leader')"
+                >
+                  準領導人
+                </button>
+              </div>
               <UButton
                 icon="i-lucide-pencil"
                 color="neutral"
                 variant="ghost"
                 size="xs"
+                title="編輯明細"
                 @click="openMeta(c)"
               />
               <UButton
@@ -551,96 +781,95 @@ function onMetaSaved(updated: Contact) {
                 color="error"
                 variant="ghost"
                 size="xs"
+                title="刪除"
                 @click="remove(c)"
               />
             </div>
           </div>
 
-          <!-- 卡片：位置 + 類型 -->
-          <div class="flex items-center gap-2 mb-2 text-xs text-muted">
-            <span>
-              <UIcon
-                name="i-lucide-map-pin"
-                class="size-3 inline"
-              />
-              {{ c.location || '—' }}
-            </span>
-            <div class="inline-flex rounded-full border border-default overflow-hidden text-xs font-medium">
-              <button
-                type="button"
-                class="px-2 py-0.5 cursor-pointer transition-colors"
-                :class="c.contactType === 'customer' ? 'bg-primary text-inverted' : 'text-dimmed hover:bg-elevated'"
-                @click="setContactType(c, 'customer')"
+          <!-- 卡片第二層：破題狀態與進度階段區塊 -->
+          <div class="bg-elevated/20 rounded-lg p-2.5 space-y-2 border border-default/40">
+            <div class="flex items-center justify-between text-xs">
+              <div class="flex items-center gap-2">
+                <span class="text-dimmed font-medium">破題：</span>
+                <div class="inline-flex rounded-full border border-default p-0.5 bg-elevated/60 text-xs font-medium">
+                  <button
+                    type="button"
+                    class="px-2.5 py-0.5 rounded-full cursor-pointer transition-all"
+                    :class="!c.broached ? 'bg-amber-500 text-white font-medium shadow-2xs' : 'text-dimmed hover:text-foreground'"
+                    @click="setBroached(c, false)"
+                  >
+                    未破題
+                  </button>
+                  <button
+                    type="button"
+                    class="px-2.5 py-0.5 rounded-full cursor-pointer transition-all"
+                    :class="c.broached ? 'bg-emerald-500 text-white font-medium shadow-2xs' : 'text-dimmed hover:text-foreground'"
+                    @click="setBroached(c, true)"
+                  >
+                    已破題
+                  </button>
+                </div>
+              </div>
+              <span
+                v-if="stages?.length"
+                class="text-xs text-muted font-medium"
               >
-                顧客
-              </button>
-              <button
-                type="button"
-                class="px-2 py-0.5 cursor-pointer transition-colors"
-                :class="c.contactType === 'leader' ? 'bg-primary text-inverted' : 'text-dimmed hover:bg-elevated'"
-                @click="setContactType(c, 'leader')"
-              >
-                準領導人
-              </button>
+                完成 {{ (c.completedStages ?? []).length }} / {{ stages.length }} 階段
+              </span>
             </div>
-          </div>
 
-          <!-- 卡片：進度 -->
-          <div class="flex flex-wrap items-center gap-1.5 mb-2">
-            <div class="inline-flex rounded-full border border-default overflow-hidden text-xs font-medium">
-              <button
-                type="button"
-                class="px-2 py-0.5 cursor-pointer transition-colors"
-                :class="!c.broached ? 'bg-primary text-inverted' : 'text-dimmed hover:bg-elevated'"
-                @click="setBroached(c, false)"
-              >
-                未破題
-              </button>
-              <button
-                type="button"
-                class="px-2 py-0.5 cursor-pointer transition-colors"
-                :class="c.broached ? 'bg-primary text-inverted' : 'text-dimmed hover:bg-elevated'"
-                @click="setBroached(c, true)"
-              >
-                破題
-              </button>
-            </div>
-            <button
-              v-for="s in (stages ?? [])"
-              :key="s.id"
-              type="button"
-              class="flex items-center gap-0.5 rounded-full border px-2 py-0.5 text-xs font-medium cursor-pointer transition-colors"
-              :class="(c.completedStages ?? []).includes(s.id)
-                ? 'border-primary bg-primary text-inverted shadow-sm'
-                : 'border-dashed border-default text-dimmed hover:border-primary/60 hover:text-primary hover:bg-primary/5'"
-              @click="toggleStage(c, s.id)"
+            <!-- 可點擊切換的進度階段 Chips -->
+            <div
+              v-if="stages?.length"
+              class="flex flex-wrap items-center gap-1.5 pt-1"
             >
-              <UIcon
-                v-if="(c.completedStages ?? []).includes(s.id)"
-                name="i-lucide-check"
-                class="size-3 shrink-0"
-              />
-              {{ s.label }}
-            </button>
+              <button
+                v-for="s in stages"
+                :key="s.id"
+                type="button"
+                class="flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium cursor-pointer transition-all active:scale-95"
+                :class="(c.completedStages ?? []).includes(s.id)
+                  ? 'bg-primary text-inverted shadow-2xs font-semibold'
+                  : 'bg-elevated/60 text-muted hover:bg-elevated hover:text-foreground border border-default/70'"
+                @click="toggleStage(c, s.id)"
+              >
+                <UIcon
+                  :name="(c.completedStages ?? []).includes(s.id) ? 'i-lucide-check-circle-2' : 'i-lucide-circle'"
+                  class="size-3.5 shrink-0"
+                  :class="(c.completedStages ?? []).includes(s.id) ? 'text-inverted' : 'text-dimmed'"
+                />
+                {{ s.label }}
+              </button>
+            </div>
           </div>
 
-          <!-- 卡片：跟進頻率 + 上次跟進 -->
-          <div class="flex items-center gap-3 text-xs">
-            <USelect
-              :model-value="c.followUpFreq ?? ''"
-              :items="freqFormItems"
-              placeholder="未設定頻率"
-              size="xs"
-              class="w-24"
-              @update:model-value="changeFreq(c, $event as string)"
-            />
-            <span :class="c.lastFollowUp ? 'tabular-nums text-muted' : 'text-dimmed'">
+          <!-- 卡片第三層：跟進資訊 -->
+          <div class="flex items-center justify-between text-xs pt-1 border-t border-default/40">
+            <div class="flex items-center gap-1.5 text-muted">
+              <UIcon
+                name="i-lucide-refresh-cw"
+                class="size-3.5 text-dimmed shrink-0"
+              />
+              <USelect
+                :model-value="c.followUpFreq ?? ''"
+                :items="freqFormItems"
+                placeholder="設定頻率"
+                size="xs"
+                class="w-28"
+                @update:model-value="changeFreq(c, $event as string)"
+              />
+            </div>
+            <div class="flex items-center gap-1 text-xs text-muted">
               <UIcon
                 name="i-lucide-clock"
-                class="size-3 inline mr-0.5"
+                class="size-3.5 text-dimmed"
               />
-              {{ timeAgo(c.lastFollowUp) }}
-            </span>
+              <span>上次跟進：</span>
+              <span :class="c.lastFollowUp ? 'font-medium text-foreground' : 'text-dimmed'">
+                {{ timeAgo(c.lastFollowUp) }}
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -786,14 +1015,13 @@ function onMetaSaved(updated: Contact) {
                 />
               </td>
               <td class="px-2 py-1 whitespace-nowrap">
-                <UInput
+                <LocationSelect
                   :model-value="c.location ?? ''"
-                  variant="ghost"
-                  size="sm"
-                  placeholder="—"
-                  class="w-20"
-                  @update:model-value="c.location = ($event as string)"
-                  @change="patchField(c, 'location')"
+                  :options="locationOptions ?? []"
+                  class="w-32"
+                  @update:model-value="changeLocation(c, $event)"
+                  @add="addLocationOption"
+                  @delete="removeLocationOption"
                 />
               </td>
               <!-- 名單類型：顧客／準領導人 二選一切換 -->
@@ -931,9 +1159,11 @@ function onMetaSaved(updated: Contact) {
               />
             </UFormField>
             <UFormField label="位置">
-              <UInput
+              <LocationSelect
                 v-model="form.location"
-                class="w-full"
+                :options="locationOptions ?? []"
+                @add="addLocationOption"
+                @delete="removeLocationOption"
               />
             </UFormField>
           </div>

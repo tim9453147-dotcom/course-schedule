@@ -35,6 +35,14 @@ export interface ContactOption {
   createdAt: number
 }
 
+// 名單地點選項（對應後端 contact_locations 表）
+export interface ContactLocation {
+  id: number
+  userId: number | null
+  label: string
+  createdAt: number
+}
+
 // 進度階段型別（對應後端 contact_stages 表）
 export interface ContactStage {
   id: number
@@ -73,6 +81,33 @@ export const FOLLOW_UP_FREQ_OPTIONS = [
   '一季一次',
   '半年一次',
   '暫停'
+]
+
+// 地點選項（名單頁地點選單）
+export const LOCATION_OPTIONS = [
+  '中壢',
+  '新竹',
+  '台北',
+  '台中',
+  '桃園',
+  '新北',
+  '苗栗',
+  '彰化',
+  '南投',
+  '雲林',
+  '嘉義',
+  '台南',
+  '高雄',
+  '屏東',
+  '宜蘭',
+  '花蓮',
+  '台東',
+  '基隆',
+  '澎湖',
+  '金門',
+  '連江',
+  '海外',
+  '其他'
 ]
 
 // 是否逾期（已設下次跟進日，且早於今天）
