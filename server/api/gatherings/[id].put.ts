@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm'
-import { gatherings } from '../../db/schema'
+import { gatherings, events } from '../../db/schema'
 
 // 更新家聚活動（需 gathering 權限）。
 export default defineEventHandler(async (event) => {
@@ -22,5 +22,34 @@ export default defineEventHandler(async (event) => {
   if (!updated) {
     throw createError({ statusCode: 404, statusMessage: '找不到這個活動' })
   }
+
+  if (data.syncToCalendar) {
+    const classroom = data.classroom || '中壢'
+    const [createdEvent] = await db
+      .insert(events)
+      .values({
+        classroom,
+        kind: 'activity',
+        title: updated.name,
+        date: updated.date,
+        startTime: updated.startTime || null,
+        endTime: updated.endTime || null,
+        location: updated.location || null,
+        color: 'rose',
+        note: updated.note || null
+      })
+      .returning()
+
+    if (createdEvent) {
+      await logScheduleChange(db, {
+        entityType: 'event',
+        entityId: createdEvent.id,
+        action: 'created',
+        classroom: createdEvent.classroom,
+        summary: buildEventSummary(createdEvent)
+      })
+    }
+  }
+
   return updated
 })

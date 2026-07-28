@@ -197,39 +197,72 @@ async function removeRental(r: Rental) {
     <!-- 數量統計 -->
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
       <div class="border border-default rounded-lg p-4">
-        <div class="text-sm text-muted">器材種類</div>
-        <div class="text-2xl font-bold">{{ stats.kinds }}</div>
+        <div class="text-sm text-muted">
+          器材種類
+        </div>
+        <div class="text-2xl font-bold">
+          {{ stats.kinds }}
+        </div>
       </div>
       <div class="border border-default rounded-lg p-4">
-        <div class="text-sm text-muted">總數量</div>
-        <div class="text-2xl font-bold">{{ stats.total }}</div>
+        <div class="text-sm text-muted">
+          總數量
+        </div>
+        <div class="text-2xl font-bold">
+          {{ stats.total }}
+        </div>
       </div>
       <div class="border border-default rounded-lg p-4">
-        <div class="text-sm text-muted">借出中</div>
-        <div class="text-2xl font-bold text-warning">{{ stats.borrowed }}</div>
+        <div class="text-sm text-muted">
+          借出中
+        </div>
+        <div class="text-2xl font-bold text-warning">
+          {{ stats.borrowed }}
+        </div>
       </div>
       <div class="border border-default rounded-lg p-4">
-        <div class="text-sm text-muted">可用</div>
-        <div class="text-2xl font-bold text-primary">{{ stats.available }}</div>
+        <div class="text-sm text-muted">
+          可用
+        </div>
+        <div class="text-2xl font-bold text-primary">
+          {{ stats.available }}
+        </div>
       </div>
     </div>
 
     <UTabs :items="viewTabs">
       <!-- 器材清單 -->
       <template #list>
-        <div v-if="canEdit" class="flex justify-end gap-2 mb-4">
-          <UButton icon="i-lucide-arrow-right-left" color="neutral" variant="subtle" @click="openBorrow()">
+        <div
+          v-if="canEdit"
+          class="flex justify-end gap-2 mb-4"
+        >
+          <UButton
+            icon="i-lucide-arrow-right-left"
+            color="neutral"
+            variant="subtle"
+            @click="openBorrow()"
+          >
             借出
           </UButton>
-          <UButton icon="i-lucide-plus" @click="openCreateEquip">
+          <UButton
+            icon="i-lucide-plus"
+            @click="openCreateEquip"
+          >
             新增器材
           </UButton>
         </div>
 
-        <div v-if="!myEquip.length" class="text-muted text-center py-12">
+        <div
+          v-if="!myEquip.length"
+          class="text-muted text-center py-12"
+        >
           這個教室還沒有器材。
         </div>
-        <div v-else class="space-y-2">
+        <div
+          v-else
+          class="space-y-2"
+        >
           <div
             v-for="e in myEquip"
             :key="e.id"
@@ -238,14 +271,28 @@ async function removeRental(r: Rental) {
             <div class="flex-1 min-w-0">
               <div class="font-medium truncate flex items-center gap-2">
                 {{ e.name }}
-                <UBadge v-if="e.category" color="neutral" variant="subtle">{{ e.category }}</UBadge>
+                <UBadge
+                  v-if="e.category"
+                  color="neutral"
+                  variant="subtle"
+                >
+                  {{ e.category }}
+                </UBadge>
               </div>
-              <div v-if="e.note" class="text-sm text-muted truncate">{{ e.note }}</div>
+              <div
+                v-if="e.note"
+                class="text-sm text-muted truncate"
+              >
+                {{ e.note }}
+              </div>
             </div>
             <div class="flex items-center gap-4 text-sm tabular-nums shrink-0">
               <span class="text-muted">總 {{ e.totalQty }}</span>
               <span class="text-warning">借出 {{ borrowedOf(e.id) }}</span>
-              <span class="font-medium" :class="availableOf(e) > 0 ? 'text-primary' : 'text-error'">
+              <span
+                class="font-medium"
+                :class="availableOf(e) > 0 ? 'text-primary' : 'text-error'"
+              >
                 可用 {{ availableOf(e) }}
               </span>
             </div>
@@ -257,8 +304,18 @@ async function removeRental(r: Rental) {
                 :disabled="availableOf(e) <= 0"
                 @click="openBorrow(e)"
               />
-              <UButton icon="i-lucide-pencil" color="neutral" variant="ghost" @click="openEditEquip(e)" />
-              <UButton icon="i-lucide-trash-2" color="error" variant="ghost" @click="removeEquip(e)" />
+              <UButton
+                icon="i-lucide-pencil"
+                color="neutral"
+                variant="ghost"
+                @click="openEditEquip(e)"
+              />
+              <UButton
+                icon="i-lucide-trash-2"
+                color="error"
+                variant="ghost"
+                @click="removeEquip(e)"
+              />
             </template>
           </div>
         </div>
@@ -266,22 +323,39 @@ async function removeRental(r: Rental) {
 
       <!-- 借還紀錄 -->
       <template #rentals>
-        <div v-if="canEdit" class="flex justify-end mb-4">
-          <UButton icon="i-lucide-plus" :disabled="!myEquip.length" @click="openBorrow()">
+        <div
+          v-if="canEdit"
+          class="flex justify-end mb-4"
+        >
+          <UButton
+            icon="i-lucide-plus"
+            :disabled="!myEquip.length"
+            @click="openBorrow()"
+          >
             新增借出
           </UButton>
         </div>
 
-        <div v-if="!myRentals.length" class="text-muted text-center py-12">
+        <div
+          v-if="!myRentals.length"
+          class="text-muted text-center py-12"
+        >
           還沒有借還紀錄。
         </div>
-        <div v-else class="space-y-2">
+        <div
+          v-else
+          class="space-y-2"
+        >
           <div
             v-for="r in myRentals"
             :key="r.id"
             class="flex items-center gap-3 border border-default rounded-lg p-3"
           >
-            <UBadge :color="r.returnDate ? 'success' : 'warning'" variant="subtle" class="shrink-0">
+            <UBadge
+              :color="r.returnDate ? 'success' : 'warning'"
+              variant="subtle"
+              class="shrink-0"
+            >
               {{ r.returnDate ? '已歸還' : '借出中' }}
             </UBadge>
             <div class="flex-1 min-w-0">
@@ -294,8 +368,12 @@ async function removeRental(r: Rental) {
             </div>
             <div class="text-sm tabular-nums text-muted shrink-0 text-right">
               <div>借出 {{ r.borrowDate }}</div>
-              <div v-if="r.returnDate">歸還 {{ r.returnDate }}</div>
-              <div v-else-if="r.dueDate">應還 {{ r.dueDate }}</div>
+              <div v-if="r.returnDate">
+                歸還 {{ r.returnDate }}
+              </div>
+              <div v-else-if="r.dueDate">
+                應還 {{ r.dueDate }}
+              </div>
             </div>
             <template v-if="canEdit">
               <UButton
@@ -307,8 +385,18 @@ async function removeRental(r: Rental) {
               >
                 歸還
               </UButton>
-              <UButton icon="i-lucide-pencil" color="neutral" variant="ghost" @click="openEditRental(r)" />
-              <UButton icon="i-lucide-trash-2" color="error" variant="ghost" @click="removeRental(r)" />
+              <UButton
+                icon="i-lucide-pencil"
+                color="neutral"
+                variant="ghost"
+                @click="openEditRental(r)"
+              />
+              <UButton
+                icon="i-lucide-trash-2"
+                color="error"
+                variant="ghost"
+                @click="removeRental(r)"
+              />
             </template>
           </div>
         </div>
@@ -316,60 +404,137 @@ async function removeRental(r: Rental) {
     </UTabs>
 
     <!-- 器材表單 -->
-    <UModal v-model:open="equipOpen" :title="equipEditingId === null ? '新增器材' : '編輯器材'">
+    <UModal
+      v-model:open="equipOpen"
+      :title="equipEditingId === null ? '新增器材' : '編輯器材'"
+    >
       <template #body>
         <div class="space-y-4">
-          <UFormField label="器材名稱" required>
-            <UInput v-model="equipForm.name" class="w-full" />
+          <UFormField
+            label="器材名稱"
+            required
+          >
+            <UInput
+              v-model="equipForm.name"
+              class="w-full"
+            />
           </UFormField>
           <div class="grid grid-cols-2 gap-4">
             <UFormField label="分類">
-              <UInput v-model="equipForm.category" class="w-full" placeholder="例：球類、3C" />
+              <UInput
+                v-model="equipForm.category"
+                class="w-full"
+                placeholder="例：球類、3C"
+              />
             </UFormField>
             <UFormField label="總數量">
-              <UInput v-model.number="equipForm.totalQty" type="number" min="0" class="w-full" />
+              <UInput
+                v-model.number="equipForm.totalQty"
+                type="number"
+                min="0"
+                class="w-full"
+              />
             </UFormField>
           </div>
           <UFormField label="備註">
-            <UTextarea v-model="equipForm.note" class="w-full" :rows="2" />
+            <UTextarea
+              v-model="equipForm.note"
+              class="w-full"
+              :rows="2"
+            />
           </UFormField>
           <div class="flex justify-end gap-2 pt-2">
-            <UButton color="neutral" variant="ghost" @click="equipOpen = false">取消</UButton>
-            <UButton :loading="equipSaving" @click="saveEquip">儲存</UButton>
+            <UButton
+              color="neutral"
+              variant="ghost"
+              @click="equipOpen = false"
+            >
+              取消
+            </UButton>
+            <UButton
+              :loading="equipSaving"
+              @click="saveEquip"
+            >
+              儲存
+            </UButton>
           </div>
         </div>
       </template>
     </UModal>
 
     <!-- 借還表單 -->
-    <UModal v-model:open="rentalOpen" :title="rentalEditingId === null ? '新增借出' : '編輯借還紀錄'">
+    <UModal
+      v-model:open="rentalOpen"
+      :title="rentalEditingId === null ? '新增借出' : '編輯借還紀錄'"
+    >
       <template #body>
         <div class="space-y-4">
-          <UFormField label="器材" required>
-            <USelect v-model="rentalForm.equipmentId" :items="equipItems" class="w-full" />
+          <UFormField
+            label="器材"
+            required
+          >
+            <USelect
+              v-model="rentalForm.equipmentId"
+              :items="equipItems"
+              class="w-full"
+            />
           </UFormField>
           <div class="grid grid-cols-2 gap-4">
-            <UFormField label="借用人" required>
-              <UInput v-model="rentalForm.borrower" class="w-full" />
+            <UFormField
+              label="借用人"
+              required
+            >
+              <UInput
+                v-model="rentalForm.borrower"
+                class="w-full"
+              />
             </UFormField>
             <UFormField label="數量">
-              <UInput v-model.number="rentalForm.qty" type="number" min="1" class="w-full" />
+              <UInput
+                v-model.number="rentalForm.qty"
+                type="number"
+                min="1"
+                class="w-full"
+              />
             </UFormField>
           </div>
           <div class="grid grid-cols-2 gap-4">
             <UFormField label="借出日">
-              <UInput v-model="rentalForm.borrowDate" type="date" class="w-full" />
+              <UInput
+                v-model="rentalForm.borrowDate"
+                type="date"
+                class="w-full"
+              />
             </UFormField>
             <UFormField label="預計歸還日">
-              <UInput v-model="rentalForm.dueDate" type="date" class="w-full" />
+              <UInput
+                v-model="rentalForm.dueDate"
+                type="date"
+                class="w-full"
+              />
             </UFormField>
           </div>
           <UFormField label="備註">
-            <UTextarea v-model="rentalForm.note" class="w-full" :rows="2" />
+            <UTextarea
+              v-model="rentalForm.note"
+              class="w-full"
+              :rows="2"
+            />
           </UFormField>
           <div class="flex justify-end gap-2 pt-2">
-            <UButton color="neutral" variant="ghost" @click="rentalOpen = false">取消</UButton>
-            <UButton :loading="rentalSaving" @click="saveRental">儲存</UButton>
+            <UButton
+              color="neutral"
+              variant="ghost"
+              @click="rentalOpen = false"
+            >
+              取消
+            </UButton>
+            <UButton
+              :loading="rentalSaving"
+              @click="saveRental"
+            >
+              儲存
+            </UButton>
           </div>
         </div>
       </template>

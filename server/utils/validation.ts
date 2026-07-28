@@ -125,8 +125,6 @@ export const contactInputSchema = z.object({
   location: z.string().trim().nullish(),
   // 是否已破題（false=未破題 / true=破題）
   broached: z.boolean().default(false),
-  // 名單類型：customer=顧客 / leader=準領導人
-  contactType: z.enum(['customer', 'leader']).default('customer'),
   // 已完成的進度階段 id 陣列
   completedStages: z.array(z.number().int()).default([]),
   contact: z.string().trim().nullish(),
@@ -149,7 +147,6 @@ export type ContactInput = z.infer<typeof contactInputSchema>
 // 故在此把它們覆寫成「不帶 default 的 optional」，沒送的欄位就維持原值不動。
 export const contactPatchSchema = contactInputSchema.partial().extend({
   broached: z.boolean().optional(),
-  contactType: z.enum(['customer', 'leader']).optional(),
   completedStages: z.array(z.number().int()).optional()
 })
 
@@ -176,6 +173,13 @@ export const contactOptionInputSchema = z.object({
 
 export type ContactOptionInput = z.infer<typeof contactOptionInputSchema>
 
+// 名單地點選項：新增
+export const contactLocationInputSchema = z.object({
+  label: z.string().trim().min(1, '請輸入地點名稱')
+})
+
+export type ContactLocationInput = z.infer<typeof contactLocationInputSchema>
+
 // 跟進紀錄輸入驗證
 export const followUpLogSchema = z.object({
   date,
@@ -183,7 +187,6 @@ export const followUpLogSchema = z.object({
 })
 
 export type FollowUpLogInput = z.infer<typeof followUpLogSchema>
-
 
 // 每日任務（個人名單表）──────────────────────────────────
 // 每一列＝把某位總名單對象（contactId）放進某個區塊；姓名與延伸欄位皆來自該 contact。
@@ -227,7 +230,10 @@ export const gatheringInputSchema = z.object({
     v => (v === '' || v === null || v === undefined ? null : v),
     z.coerce.number().int().nullable()
   ).default(null),
-  note: z.string().trim().nullish()
+  note: z.string().trim().nullish(),
+  // 同步至課表設定
+  syncToCalendar: z.boolean().default(false),
+  classroom: z.string().trim().optional().default('中壢')
 })
 
 export type GatheringInput = z.infer<typeof gatheringInputSchema>

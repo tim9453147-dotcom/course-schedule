@@ -100,7 +100,7 @@ export const rentals = sqliteTable('rentals', {
   createdAt: integer('created_at')
     .notNull()
     .$defaultFn(() => Math.floor(Date.now() / 1000))
-}, (table) => ({
+}, table => ({
   equipmentIdIdx: index('rentals_equipment_id_idx').on(table.equipmentId)
 }))
 
@@ -141,8 +141,6 @@ export const contacts = sqliteTable('contacts', {
   location: text('location'),
   // 是否已破題（false=未破題 / true=破題）。固定的二元狀態，與下方可自訂階段分開。
   broached: integer('broached', { mode: 'boolean' }).notNull().default(false),
-  // 名單類型：customer=顧客 / leader=準領導人。每筆各自分類，預設 customer。
-  contactType: text('contact_type').notNull().default('customer'),
   // 已完成的「進度階段」id 陣列（對應 contact_stages.id），以 JSON 存放
   completedStages: text('completed_stages', { mode: 'json' })
     .$type<number[]>()
@@ -173,7 +171,7 @@ export const contacts = sqliteTable('contacts', {
   updatedAt: integer('updated_at')
     .notNull()
     .$defaultFn(() => Math.floor(Date.now() / 1000))
-}, (table) => ({
+}, table => ({
   userIdIdx: index('contacts_user_id_idx').on(table.userId),
   nextFollowUpIdx: index('contacts_next_follow_up_idx').on(table.nextFollowUp)
 }))
@@ -190,7 +188,7 @@ export const contactStages = sqliteTable('contact_stages', {
   createdAt: integer('created_at')
     .notNull()
     .$defaultFn(() => Math.floor(Date.now() / 1000))
-}, (table) => ({
+}, table => ({
   userIdIdx: index('contact_stages_user_id_idx').on(table.userId)
 }))
 
@@ -204,8 +202,22 @@ export const contactOptions = sqliteTable('contact_options', {
   createdAt: integer('created_at')
     .notNull()
     .$defaultFn(() => Math.floor(Date.now() / 1000))
-}, (table) => ({
+}, table => ({
   userIdIdx: index('contact_options_user_id_idx').on(table.userId)
+}))
+
+// 名單「地點／位置」選項（每位使用者各自一份，可增/刪；預設只有中壢）。
+// 擁有者規則同 contacts/contact_options：一般使用者 users.id，超級管理員 NULL。
+export const contactLocations = sqliteTable('contact_locations', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').references(() => users.id),
+  // 地點名稱
+  label: text('label').notNull(),
+  createdAt: integer('created_at')
+    .notNull()
+    .$defaultFn(() => Math.floor(Date.now() / 1000))
+}, table => ({
+  userIdIdx: index('contact_locations_user_id_idx').on(table.userId)
 }))
 
 // 跟進紀錄（時間軸，一筆名單對多筆紀錄）
@@ -221,7 +233,7 @@ export const followUpLogs = sqliteTable('follow_up_logs', {
   createdAt: integer('created_at')
     .notNull()
     .$defaultFn(() => Math.floor(Date.now() / 1000))
-}, (table) => ({
+}, table => ({
   contactIdIdx: index('follow_up_logs_contact_id_idx').on(table.contactId)
 }))
 
@@ -247,7 +259,7 @@ export const prospects = sqliteTable('prospects', {
   createdAt: integer('created_at')
     .notNull()
     .$defaultFn(() => Math.floor(Date.now() / 1000))
-}, (table) => ({
+}, table => ({
   userIdIdx: index('prospects_user_id_idx').on(table.userId),
   contactIdIdx: index('prospects_contact_id_idx').on(table.contactId)
 }))
@@ -339,7 +351,7 @@ export const scheduleChanges = sqliteTable('schedule_changes', {
     .notNull()
     .$defaultFn(() => Math.floor(Date.now() / 1000)),
   notifiedAt: integer('notified_at')
-}, (table) => ({
+}, table => ({
   notifiedAtIdx: index('schedule_changes_notified_at_idx').on(table.notifiedAt)
 }))
 
@@ -388,3 +400,5 @@ export type Recipe = typeof recipes.$inferSelect
 export type NewRecipe = typeof recipes.$inferInsert
 export type ContactOption = typeof contactOptions.$inferSelect
 export type NewContactOption = typeof contactOptions.$inferInsert
+export type ContactLocation = typeof contactLocations.$inferSelect
+export type NewContactLocation = typeof contactLocations.$inferInsert

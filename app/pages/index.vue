@@ -11,6 +11,7 @@ import type { DateClickArg } from '@fullcalendar/interaction'
 const canEdit = useCanEdit('calendar')
 const notify = useNotify()
 const confirm = useConfirm()
+const { isMobile } = useMobile()
 const { loggedIn, session } = useUserSession()
 
 const calendarRef = ref<InstanceType<typeof FullCalendar> | null>(null)
@@ -65,9 +66,27 @@ function updateMobileViewRange(year: number, month: number) {
   }
 }
 
+const currentViewType = ref('dayGridMonth')
+
 function onDatesSet(arg: { startStr: string, endStr: string, view: { type: string } }) {
   viewRange.value = { start: arg.startStr.slice(0, 10), end: arg.endStr.slice(0, 10) }
   isTimeGrid.value = arg.view.type.startsWith('timeGrid')
+  currentViewType.value = arg.view.type
+}
+
+function setCalendarView(viewName: 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay') {
+  currentViewType.value = viewName
+  const api = calendarRef.value?.getApi()
+  if (api) {
+    api.changeView(viewName)
+  }
+}
+
+function goToday() {
+  const api = calendarRef.value?.getApi()
+  if (api) {
+    api.today()
+  }
 }
 
 // 把一門每週課展開成「可見範圍內」符合星期、且未被排除的個別日期（"YYYY-MM-DD"）。
@@ -137,19 +156,22 @@ const calendarOptions = computed<CalendarOptions>(() => ({
   dayHeaderFormat: { weekday: 'narrow' },
   // 格子只顯示日期數字（去掉「日」字）；時間格由 FullCalendar 自行渲染標頭
   dayCellContent: (arg: { date: Date }) => String(arg.date.getDate()),
-  // 月/週/日 檢視切換（像 Google 日曆右上角）
-  headerToolbar: {
-    left: 'prev,next today',
-    center: 'title',
-    right: 'dayGridMonth,timeGridWeek,timeGridDay'
-  },
+  // 手機版精簡工具列：prev title next，底下檢視切換放在外面
+  // 桌機版：原有完整工具列
+  headerToolbar: isMobile.value
+    ? { left: 'prev', center: 'title', right: 'next' }
+    : { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay' },
   buttonText: { today: '今天', month: '月', week: '週', day: '日' },
+  // 手機版標題格式更緊湊：「7月 2026」
+  titleFormat: isMobile.value ? { year: 'numeric', month: 'short' } : undefined,
   // 時間格顯示範圍：06:00–23:00，避免整條 24 小時太長
   slotMinTime: '06:00:00',
   slotMaxTime: '23:00:00',
   allDaySlot: true,
   allDayText: '全天',
   height: 'auto',
+  // 手機月曆限制每格最多 3 個事件、顯示「+n」
+  dayMaxEventRows: isMobile.value ? 3 : undefined,
   events: calendarEvents.value,
   // 月檢視事件只顯示名稱；時間格才顯示時間
   displayEventTime: isTimeGrid.value,
@@ -1081,10 +1103,10 @@ function handleTouchEnd(e: TouchEvent) {
   const maxSwipeTime = 600
 
   if (
-    deltaTime <= maxSwipeTime &&
-    Math.abs(deltaX) >= minSwipeDistance &&
-    Math.abs(deltaY) <= maxVerticalDistance &&
-    Math.abs(deltaX) > Math.abs(deltaY) * 1.2
+    deltaTime <= maxSwipeTime
+    && Math.abs(deltaX) >= minSwipeDistance
+    && Math.abs(deltaY) <= maxVerticalDistance
+    && Math.abs(deltaX) > Math.abs(deltaY) * 1.2
   ) {
     const direction = deltaX < 0 ? 'next' : 'prev'
     animateMonthChange(direction)
@@ -1125,6 +1147,7 @@ function handleTouchCancel() {
 
 <template>
   <!-- 手機版縮小左右 padding 讓課表接近滿版、日期欄位更寬；桌機維持原本留白 -->
+<<<<<<< HEAD
   <UContainer class="py-4 md:py-8 px-1.5 sm:px-6 lg:px-8">
     <!-- 手機版視圖 (<768px) -->
     <div class="md:hidden">
@@ -1191,72 +1214,337 @@ function handleTouchCancel() {
           </template>
         </ClientOnly>
       </div>
+=======
+  <UContainer class="py-4 sm:py-8 px-1.5 sm:px-6 lg:px-8">
+    <!-- 教室分頁與工具列 -->
+    <div
+      v-if="tabItems.length > 1 || canEdit"
+      class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3 sm:mb-4"
+    >
+      <!-- 教室頁籤（手機版水平捲動，隱藏滾動條） -->
+      <div class="overflow-x-auto no-scrollbar pb-1 sm:pb-0 flex-1">
+        <UTabs
+          v-if="tabItems.length > 1"
+          v-model="classroom"
+          :items="tabItems"
+          class="w-full min-w-max"
+        />
+      </div>
+
+      <!-- 桌機版動作按鈕 -->
+      <div
+        v-if="canEdit"
+        class="hidden sm:flex shrink-0 gap-2"
+      >
+        <UButton
+          icon="i-lucide-upload"
+          color="neutral"
+          variant="outline"
+          @click="openImport"
+        >
+          匯入
+        </UButton>
+        <UButton
+          icon="i-lucide-plus"
+          @click="openCreate"
+        >
+          新增
+        </UButton>
+      </div>
     </div>
 
-    <!-- 快速建立彈窗（點空白格，錨定點擊處，像 Google 日曆） -->
-    <UPopover
-      v-model:open="quickOpen"
-      :reference="virtualAnchor"
-      :content="{ side: 'bottom', align: 'start' }"
-    >
-      <template #content>
-        <div class="w-[min(20rem,calc(100vw-1.5rem))] space-y-3 p-4">
-          <p class="text-sm text-muted">
-            {{ dateLabel(form.date) }}
-          </p>
-          <UInput
-            v-model="form.title"
-            autofocus
-            placeholder="加入標題"
-            size="lg"
-            class="w-full"
-            @keydown.enter="save"
-          />
-          <div class="flex items-center gap-2 text-sm">
-            <USwitch v-model="quickAllDay" size="sm" />
-            <span class="text-muted">全天</span>
-          </div>
-          <div v-if="!quickAllDay" class="grid grid-cols-2 gap-2">
-            <div class="grid grid-cols-2 gap-1">
-              <USelect v-model="startHour" :items="hourItems" placeholder="時" class="w-full" />
-              <USelect v-model="startMinute" :items="minuteItems" :disabled="startHour === ALL_DAY" placeholder="分" class="w-full" />
-            </div>
-            <div class="grid grid-cols-2 gap-1">
-              <USelect v-model="endHour" :items="hourItems" placeholder="時" class="w-full" />
-              <USelect v-model="endMinute" :items="minuteItems" :disabled="endHour === ALL_DAY" placeholder="分" class="w-full" />
-            </div>
-          </div>
-          <div class="flex items-center justify-between pt-1">
-            <UButton color="neutral" variant="ghost" size="sm" @click="openMore">
-              更多選項
-            </UButton>
-            <UButton :loading="saving" @click="save">
-              儲存
-            </UButton>
-          </div>
-        </div>
-      </template>
-    </UPopover>
+    <!-- 手機版專用日曆控制列（檢視切換：月 / 週 / 日 + 今天） -->
+    <div class="sm:hidden flex items-center justify-between gap-2 mb-3 bg-elevated/40 p-1.5 rounded-xl border border-default/50">
+      <div class="flex items-center gap-1">
+        <UButton
+          size="xs"
+          color="neutral"
+          variant="ghost"
+          icon="i-lucide-calendar"
+          @click="goToday"
+        >
+          今天
+        </UButton>
+      </div>
+      <div class="flex items-center gap-1">
+        <UButton
+          size="xs"
+          :color="currentViewType === 'dayGridMonth' ? 'primary' : 'neutral'"
+          :variant="currentViewType === 'dayGridMonth' ? 'solid' : 'ghost'"
+          @click="setCalendarView('dayGridMonth')"
+        >
+          月
+        </UButton>
+        <UButton
+          size="xs"
+          :color="currentViewType === 'timeGridWeek' ? 'primary' : 'neutral'"
+          :variant="currentViewType === 'timeGridWeek' ? 'solid' : 'ghost'"
+          @click="setCalendarView('timeGridWeek')"
+        >
+          週
+        </UButton>
+        <UButton
+          size="xs"
+          :color="currentViewType === 'timeGridDay' ? 'primary' : 'neutral'"
+          :variant="currentViewType === 'timeGridDay' ? 'solid' : 'ghost'"
+          @click="setCalendarView('timeGridDay')"
+        >
+          日
+        </UButton>
+        <UButton
+          v-if="canEdit"
+          size="xs"
+          color="neutral"
+          variant="outline"
+          icon="i-lucide-upload"
+          class="ml-1"
+          @click="openImport"
+        >
+          匯入
+        </UButton>
+      </div>
+    </div>
 
-    <!-- 詳情彈窗（點既有事件，唯讀＋編輯/刪除，像 Google 日曆） -->
-    <UPopover
-      v-model:open="detailOpen"
-      :reference="virtualAnchor"
-      :content="{ side: 'bottom', align: 'start' }"
+    <div
+      class="schedule-calendar"
+      :class="{ 'is-editable': canEdit }"
+      @touchstart.capture="handleTouchStart"
+      @touchmove.capture="handleTouchMove"
+      @touchend.capture="handleTouchEnd"
+      @touchcancel.capture="handleTouchCancel"
     >
-      <template #content>
-        <EventDetailPopover
-          v-if="detail"
-          :detail="detail"
-          :can-edit="canEdit"
-          @edit="openDetailEdit"
-          @delete="onDetailDelete"
+      <ClientOnly>
+        <FullCalendar
+          ref="calendarRef"
+          :options="calendarOptions"
         />
-      </template>
-    </UPopover>
+        <template #fallback>
+          <div class="text-muted py-16 text-center">
+            月曆載入中…
+          </div>
+        </template>
+      </ClientOnly>
+>>>>>>> 7c9a7e094b2e4e213b56421e106cc4c400079547
+    </div>
+
+    <!-- 手機版 FAB Floating Action Button（參考 Google Calendar 手機 App） -->
+    <div
+      v-if="canEdit"
+      class="sm:hidden fixed bottom-6 right-5 z-40"
+    >
+      <UButton
+        icon="i-lucide-plus"
+        size="xl"
+        color="primary"
+        class="rounded-full shadow-lg p-3.5 ring-4 ring-background"
+        aria-label="新增活動/課程"
+        @click="openCreate"
+      />
+    </div>
+
+    <!-- 快速建立彈窗（桌機版 UPopover / 手機版 UDrawer 底部抽屜） -->
+    <template v-if="!isMobile">
+      <UPopover
+        v-model:open="quickOpen"
+        :reference="virtualAnchor"
+        :content="{ side: 'bottom', align: 'start' }"
+      >
+        <template #content>
+          <div class="w-[min(20rem,calc(100vw-1.5rem))] space-y-3 p-4">
+            <p class="text-sm text-muted">
+              {{ dateLabel(form.date) }}
+            </p>
+            <UInput
+              v-model="form.title"
+              autofocus
+              placeholder="加入標題"
+              size="lg"
+              class="w-full"
+              @keydown.enter="save"
+            />
+            <div class="flex items-center gap-2 text-sm">
+              <USwitch
+                v-model="quickAllDay"
+                size="sm"
+              />
+              <span class="text-muted">全天</span>
+            </div>
+            <div
+              v-if="!quickAllDay"
+              class="grid grid-cols-2 gap-2"
+            >
+              <div class="grid grid-cols-2 gap-1">
+                <USelect
+                  v-model="startHour"
+                  :items="hourItems"
+                  placeholder="時"
+                  class="w-full"
+                />
+                <USelect
+                  v-model="startMinute"
+                  :items="minuteItems"
+                  :disabled="startHour === ALL_DAY"
+                  placeholder="分"
+                  class="w-full"
+                />
+              </div>
+              <div class="grid grid-cols-2 gap-1">
+                <USelect
+                  v-model="endHour"
+                  :items="hourItems"
+                  placeholder="時"
+                  class="w-full"
+                />
+                <USelect
+                  v-model="endMinute"
+                  :items="minuteItems"
+                  :disabled="endHour === ALL_DAY"
+                  placeholder="分"
+                  class="w-full"
+                />
+              </div>
+            </div>
+            <div class="flex items-center justify-between pt-1">
+              <UButton
+                color="neutral"
+                variant="ghost"
+                size="sm"
+                @click="openMore"
+              >
+                更多選項
+              </UButton>
+              <UButton
+                :loading="saving"
+                @click="save"
+              >
+                儲存
+              </UButton>
+            </div>
+          </div>
+        </template>
+      </UPopover>
+    </template>
+    <template v-else>
+      <UDrawer
+        v-model:open="quickOpen"
+        title="快速建立"
+      >
+        <template #body>
+          <div class="space-y-4 pb-4">
+            <p class="text-sm text-muted">
+              {{ dateLabel(form.date) }}
+            </p>
+            <UInput
+              v-model="form.title"
+              autofocus
+              placeholder="加入標題"
+              size="lg"
+              class="w-full"
+              @keydown.enter="save"
+            />
+            <div class="flex items-center gap-2 text-sm">
+              <USwitch
+                v-model="quickAllDay"
+                size="sm"
+              />
+              <span class="text-muted">全天</span>
+            </div>
+            <div
+              v-if="!quickAllDay"
+              class="grid grid-cols-2 gap-2"
+            >
+              <div class="grid grid-cols-2 gap-1">
+                <USelect
+                  v-model="startHour"
+                  :items="hourItems"
+                  placeholder="時"
+                  class="w-full"
+                />
+                <USelect
+                  v-model="startMinute"
+                  :items="minuteItems"
+                  :disabled="startHour === ALL_DAY"
+                  placeholder="分"
+                  class="w-full"
+                />
+              </div>
+              <div class="grid grid-cols-2 gap-1">
+                <USelect
+                  v-model="endHour"
+                  :items="hourItems"
+                  placeholder="時"
+                  class="w-full"
+                />
+                <USelect
+                  v-model="endMinute"
+                  :items="minuteItems"
+                  :disabled="endHour === ALL_DAY"
+                  placeholder="分"
+                  class="w-full"
+                />
+              </div>
+            </div>
+            <div class="flex items-center justify-between pt-2">
+              <UButton
+                color="neutral"
+                variant="ghost"
+                size="sm"
+                @click="openMore"
+              >
+                更多選項
+              </UButton>
+              <UButton
+                :loading="saving"
+                size="lg"
+                class="px-6"
+                @click="save"
+              >
+                儲存
+              </UButton>
+            </div>
+          </div>
+        </template>
+      </UDrawer>
+    </template>
+
+    <!-- 詳情彈窗（桌機版 UPopover / 手機版 UDrawer 底部抽屜） -->
+    <template v-if="!isMobile">
+      <UPopover
+        v-model:open="detailOpen"
+        :reference="virtualAnchor"
+        :content="{ side: 'bottom', align: 'start' }"
+      >
+        <template #content>
+          <EventDetailPopover
+            v-if="detail"
+            :detail="detail"
+            :can-edit="canEdit"
+            @edit="openDetailEdit"
+            @delete="onDetailDelete"
+          />
+        </template>
+      </UPopover>
+    </template>
+    <template v-else>
+      <UDrawer v-model:open="detailOpen">
+        <template #body>
+          <EventDetailPopover
+            v-if="detail"
+            :detail="detail"
+            :can-edit="canEdit"
+            class="w-full p-0"
+            @edit="openDetailEdit"
+            @delete="onDetailDelete"
+          />
+        </template>
+      </UDrawer>
+    </template>
 
     <!-- 新增 / 編輯視窗 -->
-    <UModal v-model:open="open" :title="modalTitle">
+    <UModal
+      v-model:open="open"
+      :title="modalTitle"
+    >
       <template #body>
         <div class="space-y-5">
           <!-- 標題（大字級，像 Google 日曆） -->
@@ -1269,27 +1557,68 @@ function handleTouchCancel() {
           />
 
           <!-- 類型（活動 / 課程）：只是分類，會帶入不同預設顏色 -->
-          <UTabs :model-value="form.kind" :items="kindItems" size="sm" @update:model-value="onKindChange" />
+          <UTabs
+            :model-value="form.kind"
+            :items="kindItems"
+            size="sm"
+            @update:model-value="onKindChange"
+          />
 
           <!-- 日期 + 全天 + 時間 -->
           <div class="flex items-start gap-3">
-            <UIcon name="i-lucide-clock" class="mt-2 size-5 shrink-0 text-muted" />
+            <UIcon
+              name="i-lucide-clock"
+              class="mt-2 size-5 shrink-0 text-muted"
+            />
             <div class="flex-1 space-y-2">
               <div class="flex flex-wrap items-center gap-3">
-                <UInput v-model="form.date" type="date" class="cursor-pointer [&_input]:cursor-pointer" @click="openDatePicker" />
+                <UInput
+                  v-model="form.date"
+                  type="date"
+                  class="cursor-pointer [&_input]:cursor-pointer"
+                  @click="openDatePicker"
+                />
                 <div class="ml-auto flex items-center gap-2">
-                  <USwitch v-model="quickAllDay" size="sm" />
+                  <USwitch
+                    v-model="quickAllDay"
+                    size="sm"
+                  />
                   <span class="text-sm text-muted">全天</span>
                 </div>
               </div>
-              <div v-if="!quickAllDay" class="grid grid-cols-2 gap-2">
+              <div
+                v-if="!quickAllDay"
+                class="grid grid-cols-2 gap-2"
+              >
                 <div class="grid grid-cols-2 gap-1">
-                  <USelect v-model="startHour" :items="hourItems" placeholder="時" class="w-full" />
-                  <USelect v-model="startMinute" :items="minuteItems" :disabled="startHour === ALL_DAY" placeholder="分" class="w-full" />
+                  <USelect
+                    v-model="startHour"
+                    :items="hourItems"
+                    placeholder="時"
+                    class="w-full"
+                  />
+                  <USelect
+                    v-model="startMinute"
+                    :items="minuteItems"
+                    :disabled="startHour === ALL_DAY"
+                    placeholder="分"
+                    class="w-full"
+                  />
                 </div>
                 <div class="grid grid-cols-2 gap-1">
-                  <USelect v-model="endHour" :items="hourItems" placeholder="時" class="w-full" />
-                  <USelect v-model="endMinute" :items="minuteItems" :disabled="endHour === ALL_DAY" placeholder="分" class="w-full" />
+                  <USelect
+                    v-model="endHour"
+                    :items="hourItems"
+                    placeholder="時"
+                    class="w-full"
+                  />
+                  <USelect
+                    v-model="endMinute"
+                    :items="minuteItems"
+                    :disabled="endHour === ALL_DAY"
+                    placeholder="分"
+                    class="w-full"
+                  />
                 </div>
               </div>
             </div>
@@ -1297,10 +1626,20 @@ function handleTouchCancel() {
 
           <!-- 重複（不重複＝單次、每週重複＝每週同一天） -->
           <div class="flex items-center gap-3">
-            <UIcon name="i-lucide-repeat" class="size-5 shrink-0 text-muted" />
+            <UIcon
+              name="i-lucide-repeat"
+              class="size-5 shrink-0 text-muted"
+            />
             <div class="flex-1">
-              <USelect v-model="form.repeat" :items="repeatItems" class="w-full" />
-              <p v-if="form.repeat === 'weekly'" class="mt-1 text-xs text-muted">
+              <USelect
+                v-model="form.repeat"
+                :items="repeatItems"
+                class="w-full"
+              />
+              <p
+                v-if="form.repeat === 'weekly'"
+                class="mt-1 text-xs text-muted"
+              >
                 每週{{ weeklyDayLabel }}重複
               </p>
             </div>
@@ -1308,19 +1647,36 @@ function handleTouchCancel() {
 
           <!-- 地點 -->
           <div class="flex items-center gap-3">
-            <UIcon name="i-lucide-map-pin" class="size-5 shrink-0 text-muted" />
-            <UInput v-model="form.location" placeholder="地點" class="flex-1" />
+            <UIcon
+              name="i-lucide-map-pin"
+              class="size-5 shrink-0 text-muted"
+            />
+            <UInput
+              v-model="form.location"
+              placeholder="地點"
+              class="flex-1"
+            />
           </div>
 
           <!-- 教室 -->
           <div class="flex items-center gap-3">
-            <UIcon name="i-lucide-building-2" class="size-5 shrink-0 text-muted" />
-            <USelect v-model="form.classroom" :items="tabItems" class="flex-1" />
+            <UIcon
+              name="i-lucide-building-2"
+              class="size-5 shrink-0 text-muted"
+            />
+            <USelect
+              v-model="form.classroom"
+              :items="tabItems"
+              class="flex-1"
+            />
           </div>
 
           <!-- 顏色（色票，像 Google 日曆） -->
           <div class="flex items-center gap-3">
-            <UIcon name="i-lucide-palette" class="size-5 shrink-0 text-muted" />
+            <UIcon
+              name="i-lucide-palette"
+              class="size-5 shrink-0 text-muted"
+            />
             <div class="flex flex-wrap gap-2">
               <button
                 v-for="c in colorItems"
@@ -1336,28 +1692,54 @@ function handleTouchCancel() {
           </div>
 
           <!-- 課程角色（只在類型=課程時顯示，皆可留空） -->
-          <div v-if="form.kind === 'course'" class="flex items-start gap-3">
-            <UIcon name="i-lucide-users" class="mt-2 size-5 shrink-0 text-muted" />
+          <div
+            v-if="form.kind === 'course'"
+            class="flex items-start gap-3"
+          >
+            <UIcon
+              name="i-lucide-users"
+              class="mt-2 size-5 shrink-0 text-muted"
+            />
             <div class="grid flex-1 grid-cols-2 gap-3">
               <UFormField label="主持">
-                <UInput v-model="form.host" class="w-full" />
+                <UInput
+                  v-model="form.host"
+                  class="w-full"
+                />
               </UFormField>
               <UFormField label="分享">
-                <UInput v-model="form.sharer" class="w-full" />
+                <UInput
+                  v-model="form.sharer"
+                  class="w-full"
+                />
               </UFormField>
               <UFormField label="總結">
-                <UInput v-model="form.summarizer" class="w-full" />
+                <UInput
+                  v-model="form.summarizer"
+                  class="w-full"
+                />
               </UFormField>
               <UFormField label="PM">
-                <UInput v-model="form.pm" class="w-full" />
+                <UInput
+                  v-model="form.pm"
+                  class="w-full"
+                />
               </UFormField>
             </div>
           </div>
 
           <!-- 備註 -->
           <div class="flex items-start gap-3">
-            <UIcon name="i-lucide-align-left" class="mt-2 size-5 shrink-0 text-muted" />
-            <UTextarea v-model="form.note" placeholder="備註" class="flex-1" :rows="2" />
+            <UIcon
+              name="i-lucide-align-left"
+              class="mt-2 size-5 shrink-0 text-muted"
+            />
+            <UTextarea
+              v-model="form.note"
+              placeholder="備註"
+              class="flex-1"
+              :rows="2"
+            />
           </div>
 
           <div class="flex items-center justify-between pt-2">
@@ -1371,10 +1753,17 @@ function handleTouchCancel() {
               刪除
             </UButton>
             <div class="flex gap-2 ml-auto">
-              <UButton color="neutral" variant="ghost" @click="open = false">
+              <UButton
+                color="neutral"
+                variant="ghost"
+                @click="open = false"
+              >
                 取消
               </UButton>
-              <UButton :loading="saving" @click="save">
+              <UButton
+                :loading="saving"
+                @click="save"
+              >
                 儲存
               </UButton>
             </div>
@@ -1384,15 +1773,28 @@ function handleTouchCancel() {
     </UModal>
 
     <!-- 修改範圍（每週重複項目按儲存時詢問，像 Google 日曆） -->
-    <UModal v-model:open="scopeOpen" title="要修改哪些活動？">
+    <UModal
+      v-model:open="scopeOpen"
+      title="要修改哪些活動？"
+    >
       <template #body>
         <div class="space-y-4">
-          <URadioGroup v-model="editScope" :items="editScopeItems" />
+          <URadioGroup
+            v-model="editScope"
+            :items="editScopeItems"
+          />
           <div class="flex gap-2 justify-end pt-2">
-            <UButton color="neutral" variant="ghost" @click="scopeOpen = false">
+            <UButton
+              color="neutral"
+              variant="ghost"
+              @click="scopeOpen = false"
+            >
               取消
             </UButton>
-            <UButton :loading="saving" @click="applyCourseEdit(editScope)">
+            <UButton
+              :loading="saving"
+              @click="applyCourseEdit(editScope)"
+            >
               確認
             </UButton>
           </div>
@@ -1401,15 +1803,26 @@ function handleTouchCancel() {
     </UModal>
 
     <!-- 匯入課表（選教室＋貼上 JSON＋預覽確認，批次依日期匯入單次活動） -->
-    <UModal v-model:open="importOpen" title="匯入課表" :ui="{ content: 'max-w-2xl' }">
+    <UModal
+      v-model:open="importOpen"
+      title="匯入課表"
+      :ui="{ content: 'max-w-2xl' }"
+    >
       <template #body>
         <div class="space-y-4">
           <div class="grid grid-cols-2 gap-4">
             <UFormField label="匯入到教室">
-              <USelect v-model="importClassroom" :items="tabItems" class="w-full" />
+              <USelect
+                v-model="importClassroom"
+                :items="tabItems"
+                class="w-full"
+              />
             </UFormField>
             <UFormField label="模式">
-              <URadioGroup v-model="importMode" :items="importModeItems" />
+              <URadioGroup
+                v-model="importMode"
+                :items="importModeItems"
+              />
             </UFormField>
           </div>
 
@@ -1441,7 +1854,12 @@ function handleTouchCancel() {
           <UFormField label="課表 JSON">
             <template #help>
               <span>上傳圖片自動產生，或貼上 AI 轉出的 JSON 陣列。</span>
-              <UButton variant="link" size="xs" class="p-0 align-baseline" @click="copyAiPrompt">
+              <UButton
+                variant="link"
+                size="xs"
+                class="p-0 align-baseline"
+                @click="copyAiPrompt"
+              >
                 複製 AI 指令
               </UButton>
             </template>
@@ -1454,16 +1872,28 @@ function handleTouchCancel() {
           </UFormField>
 
           <!-- 解析後預覽 -->
-          <div v-if="importParsed" class="space-y-2">
-            <div v-if="importParsed.errors.length" class="text-sm text-error space-y-1">
-              <p v-for="(e, i) in importParsed.errors" :key="i">
+          <div
+            v-if="importParsed"
+            class="space-y-2"
+          >
+            <div
+              v-if="importParsed.errors.length"
+              class="text-sm text-error space-y-1"
+            >
+              <p
+                v-for="(e, i) in importParsed.errors"
+                :key="i"
+              >
                 ⚠ {{ e }}
               </p>
             </div>
             <p class="text-sm text-muted">
               共 {{ importParsed.rows.length }} 筆<span v-if="importMode === 'replace'">（將覆蓋 {{ importClassroom }} 在此日期範圍內的活動）</span>
             </p>
-            <div v-if="importParsed.rows.length" class="max-h-56 overflow-auto rounded border border-default text-sm">
+            <div
+              v-if="importParsed.rows.length"
+              class="max-h-56 overflow-auto rounded border border-default text-sm"
+            >
               <table class="w-full">
                 <thead class="bg-elevated text-muted">
                   <tr>
@@ -1482,7 +1912,11 @@ function handleTouchCancel() {
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="(r, i) in importParsed.rows" :key="i" class="border-t border-default">
+                  <tr
+                    v-for="(r, i) in importParsed.rows"
+                    :key="i"
+                    class="border-t border-default"
+                  >
                     <td class="px-2 py-1">
                       {{ r.title || '—' }}
                     </td>
@@ -1501,19 +1935,33 @@ function handleTouchCancel() {
             </div>
           </div>
 
-          <p v-if="importProgress" class="text-sm text-muted">
+          <p
+            v-if="importProgress"
+            class="text-sm text-muted"
+          >
             {{ importProgress }}
           </p>
 
           <div class="flex gap-2 justify-end pt-2">
-            <UButton color="neutral" variant="ghost" @click="importOpen = false">
+            <UButton
+              color="neutral"
+              variant="ghost"
+              @click="importOpen = false"
+            >
               取消
             </UButton>
-            <UButton v-if="!importParsed" @click="parseImport">
+            <UButton
+              v-if="!importParsed"
+              @click="parseImport"
+            >
               解析預覽
             </UButton>
             <template v-else>
-              <UButton color="neutral" variant="outline" @click="parseImport">
+              <UButton
+                color="neutral"
+                variant="outline"
+                @click="parseImport"
+              >
                 重新解析
               </UButton>
               <UButton

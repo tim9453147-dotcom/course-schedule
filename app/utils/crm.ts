@@ -5,8 +5,6 @@ export interface Contact {
   location: string | null
   // 是否已破題（false=未破題 / true=破題）
   broached: boolean
-  // 名單類型：customer=顧客 / leader=準領導人
-  contactType: 'customer' | 'leader'
   // 已完成的進度階段 id 陣列（對應 ContactStage.id）
   completedStages: number[]
   // 聯絡方式（開發名單）
@@ -29,6 +27,14 @@ export interface Contact {
 
 // 名單明細「誰的朋友／開發夥伴」共用人名選項（對應後端 contact_options 表）
 export interface ContactOption {
+  id: number
+  userId: number | null
+  label: string
+  createdAt: number
+}
+
+// 名單地點選項（對應後端 contact_locations 表）
+export interface ContactLocation {
   id: number
   userId: number | null
   label: string
@@ -59,12 +65,6 @@ export const BROACHED_OPTIONS = [
   { label: '破題', value: true }
 ] as const
 
-// 名單類型的二選一切換選項（顧客在左、準領導人在右）
-export const CONTACT_TYPE_OPTIONS = [
-  { label: '顧客', value: 'customer' },
-  { label: '準領導人', value: 'leader' }
-] as const
-
 // 跟進頻率選項
 export const FOLLOW_UP_FREQ_OPTIONS = [
   '一週一次',
@@ -73,6 +73,33 @@ export const FOLLOW_UP_FREQ_OPTIONS = [
   '一季一次',
   '半年一次',
   '暫停'
+]
+
+// 地點選項（名單頁地點選單）
+export const LOCATION_OPTIONS = [
+  '中壢',
+  '新竹',
+  '台北',
+  '台中',
+  '桃園',
+  '新北',
+  '苗栗',
+  '彰化',
+  '南投',
+  '雲林',
+  '嘉義',
+  '台南',
+  '高雄',
+  '屏東',
+  '宜蘭',
+  '花蓮',
+  '台東',
+  '基隆',
+  '澎湖',
+  '金門',
+  '連江',
+  '海外',
+  '其他'
 ]
 
 // 是否逾期（已設下次跟進日，且早於今天）

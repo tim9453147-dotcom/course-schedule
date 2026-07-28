@@ -36,26 +36,58 @@ async function onSubmit() {
         </h1>
       </template>
 
-      <div v-if="submitted" class="space-y-4 text-center py-4">
-        <UIcon name="i-lucide-check-circle" class="text-4xl text-success" />
+      <div
+        v-if="submitted"
+        class="space-y-4 text-center py-4"
+      >
+        <UIcon
+          name="i-lucide-check-circle"
+          class="text-4xl text-success"
+        />
         <p class="text-sm">
           申請已送出，請等待管理者審核通過後即可登入。
         </p>
-        <UButton to="/" variant="soft" block>
+        <UButton
+          to="/"
+          variant="soft"
+          block
+        >
           回首頁
         </UButton>
       </div>
 
-      <UForm v-else :schema="schema" :state="state" class="space-y-4" @submit="onSubmit">
-        <UFormField label="帳號（建議用 email）" name="username">
-          <UInput v-model="state.username" class="w-full" autocomplete="username" />
+      <UForm
+        v-else
+        :schema="schema"
+        :state="state"
+        class="space-y-4"
+        @submit="onSubmit"
+      >
+        <UFormField
+          label="帳號（建議用 email）"
+          name="username"
+        >
+          <UInput
+            v-model="state.username"
+            class="w-full"
+            autocomplete="username"
+          />
         </UFormField>
 
-        <UFormField label="顯示名稱" name="displayName">
-          <UInput v-model="state.displayName" class="w-full" />
+        <UFormField
+          label="顯示名稱"
+          name="displayName"
+        >
+          <UInput
+            v-model="state.displayName"
+            class="w-full"
+          />
         </UFormField>
 
-        <UFormField label="密碼" name="password">
+        <UFormField
+          label="密碼"
+          name="password"
+        >
           <UInput
             v-model="state.password"
             type="password"
@@ -64,11 +96,22 @@ async function onSubmit() {
           />
         </UFormField>
 
-        <UFormField label="申請說明（選填）" name="note">
-          <UTextarea v-model="state.note" class="w-full" :rows="2" />
+        <UFormField
+          label="申請說明（選填）"
+          name="note"
+        >
+          <UTextarea
+            v-model="state.note"
+            class="w-full"
+            :rows="2"
+          />
         </UFormField>
 
-        <UButton type="submit" block :loading="loading">
+        <UButton
+          type="submit"
+          block
+          :loading="loading"
+        >
           送出申請
         </UButton>
 
