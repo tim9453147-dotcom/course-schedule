@@ -96,7 +96,7 @@ export function buildTodayScheduleBlock(
   grouped: { classroom: string, items: TodayItem[] }[],
   today: TodayInfo
 ): string {
-  const header = `☀️ 早安！今日課表（${today.month}/${today.day} 週${today.weekdayLabel}）`
+  const header = `☀️ 早安！明日行程（${today.month}/${today.day} 週${today.weekdayLabel}）`
   const blocks = grouped.map((g) => {
     const lines = g.items
       .map((it) => {

@@ -4,7 +4,7 @@ name: 每日課表異動通知
 # 需在 repo Settings → Secrets 設定 NOTIFY_CRON_SECRET（值同 Cloudflare Pages 的 NUXT_NOTIFY_CRON_SECRET）。
 on:
   schedule:
-    - cron: '0 0 * * *'
+    - cron: '0 12 * * *'
   workflow_dispatch:
 
 jobs:
