@@ -1,7 +1,6 @@
 <script setup lang="ts">
-// 每日任務（個人名單表）：從總名單挑人放進四個區塊。
-// 每一列的姓名與延伸欄位皆唯讀（來源是所引用的 contact，要改去總名單的「明細」編輯）；
-// 只有這一列自己的「日期」可 inline 修改。
+// 每日任務（個人名單表）：從總名單挑人放進四個區塊，並融合「今日跟進」智慧提醒與一鍵跟進功能。
+// 每一列的姓名與延伸欄位皆來自所引用的 contact；只有這一列自己的「日期」可 inline 修改。
 const notify = useNotify()
 const confirm = useConfirm()
 
@@ -11,14 +10,60 @@ const { data: items, refresh } = useFetch<Prospect[]>('/api/prospects', {
   lazy: true,
   default: () => []
 })
-// 加入視窗要用的總名單清單
-const { data: contactsList } = useFetch<Contact[]>('/api/contacts', {
+// 加入視窗與計算今日跟進要用的總名單清單
+const { data: contactsList, refresh: refreshContacts } = useFetch<Contact[]>('/api/contacts', {
   key: 'global-contacts',
   deep: true,
   lazy: true,
   default: () => []
 })
 
+const today = todayStr()
+
+/* ---------- 今日跟進狀態與邏輯 ---------- */
+const onlyTodayFollowUp = ref(false)
+const marking = ref(new Set<number>())
+
+function reasonColor(kind?: NonNullable<LeadReason>['kind']) {
+  return kind === 'overdue' ? 'error' : kind === 'due' ? 'warning' : 'neutral'
+}
+
+// 今日需跟進的總名單對象（含所屬區塊資訊，依熱度排序）
+const todayFollowUpList = computed(() => {
+  const allContacts = contactsList.value ?? []
+  const allProspects = items.value ?? []
+  return allContacts
+    .filter(c => isTodayFollowUp(c, today))
+    .map((c) => {
+      const pSections = allProspects.filter(p => p.contactId === c.id).map(p => p.section)
+      return {
+        c,
+        score: leadScore(c, today),
+        reason: topReason(c, today),
+        sections: Array.from(new Set(pSections))
+      }
+    })
+    .sort((a, b) => b.score - a.score)
+})
+
+// 一鍵「今天已跟進」
+async function markDone(c: Contact) {
+  if (marking.value.has(c.id)) return
+  marking.value.add(c.id)
+  try {
+    await $fetch(`/api/contacts/${c.id}/logs`, { method: 'POST', body: { date: today, content: '' } })
+    await refreshContacts()
+    await refresh()
+    notify.success(`已更新「${c.name}」的今日跟進`)
+  } catch {
+    notify.error('更新失敗')
+    await refreshContacts()
+  } finally {
+    marking.value.delete(c.id)
+  }
+}
+
+/* ---------- 依區塊分組（可切換「僅看今日待辦」） ---------- */
 const bySection = computed(() => {
   const g: Record<ProspectSection, Prospect[]> = {
     develop: [],
@@ -26,7 +71,13 @@ const bySection = computed(() => {
     five: [],
     network: []
   }
-  for (const p of items.value ?? []) g[p.section]?.push(p)
+  for (const p of items.value ?? []) {
+    if (!p.contact) continue
+    if (onlyTodayFollowUp.value && !isTodayFollowUp(p.contact, today)) {
+      continue
+    }
+    g[p.section]?.push(p)
+  }
   return g
 })
 
@@ -37,17 +88,17 @@ const pickerSearch = ref('')
 const selectedIds = ref<number[]>([])
 const adding = ref(false)
 
-function openPicker(section: ProspectSection) {
+function openPicker(section: ProspectSection, preselectedContactId?: number) {
   pickerSection.value = section
   pickerSearch.value = ''
-  selectedIds.value = []
+  selectedIds.value = preselectedContactId ? [preselectedContactId] : []
   pickerOpen.value = true
 }
 
 // 這個區塊尚未加入、且符合搜尋的總名單對象
 const pickerCandidates = computed(() => {
   const used = new Set(
-    bySection.value[pickerSection.value].map(p => p.contactId)
+    (bySection.value[pickerSection.value] || []).map(p => p.contactId)
   )
   const q = pickerSearch.value.trim().toLowerCase()
   return (contactsList.value ?? []).filter(
@@ -139,13 +190,159 @@ function onDetailSaved(updated: Contact) {
 </script>
 
 <template>
-  <div class="space-y-8">
+  <div class="space-y-6">
+    <!-- 今日跟進焦點看板 Top Banner -->
+    <div class="border border-default rounded-xl p-4 sm:p-5 bg-gradient-to-r from-primary-500/5 via-elevated/40 to-elevated/10 space-y-3">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div class="flex items-center gap-2.5">
+          <div class="p-2 rounded-lg bg-primary/10 text-primary">
+            <UIcon
+              name="i-lucide-flame"
+              class="w-5 h-5"
+            />
+          </div>
+          <div>
+            <h2 class="font-bold text-lg leading-tight flex items-center gap-2">
+              今日跟進焦點
+              <UBadge
+                v-if="todayFollowUpList.length"
+                color="primary"
+                variant="soft"
+                size="sm"
+              >
+                {{ todayFollowUpList.length }} 位待處理
+              </UBadge>
+            </h2>
+            <p class="text-xs text-muted">
+              包含逾期、今天到期與待啟動名單，依熱度排序
+            </p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <UButton
+            :color="onlyTodayFollowUp ? 'primary' : 'neutral'"
+            :variant="onlyTodayFollowUp ? 'solid' : 'outline'"
+            size="sm"
+            icon="i-lucide-filter"
+            @click="onlyTodayFollowUp = !onlyTodayFollowUp"
+          >
+            {{ onlyTodayFollowUp ? '顯示全部名單' : `僅看今日待辦 (${todayFollowUpList.length})` }}
+          </UButton>
+        </div>
+      </div>
+
+      <!-- 待跟進對象卡片列表 -->
+      <div
+        v-if="!todayFollowUpList.length"
+        class="text-muted text-sm py-4 text-center"
+      >
+        今天沒有待跟進的名單 🎉 保持好習慣，繼續加油！
+      </div>
+
+      <div
+        v-else
+        class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 pt-1"
+      >
+        <div
+          v-for="{ c, score, reason, sections } in todayFollowUpList"
+          :key="c.id"
+          class="flex flex-col justify-between p-3 rounded-lg border border-default bg-elevated/40 hover:border-primary/50 transition-colors gap-2"
+        >
+          <div class="space-y-1">
+            <div class="flex items-center justify-between gap-1">
+              <span class="font-bold text-base truncate">{{ c.name }}</span>
+              <span class="text-dimmed text-xs tabular-nums shrink-0">熱度 {{ score }}</span>
+            </div>
+
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <UBadge
+                v-if="reason"
+                :color="reasonColor(reason.kind)"
+                variant="subtle"
+                size="xs"
+              >
+                {{ reason.label }}
+              </UBadge>
+
+              <template v-if="sections.length">
+                <UBadge
+                  v-for="s in sections"
+                  :key="s"
+                  color="neutral"
+                  variant="outline"
+                  size="xs"
+                >
+                  {{ PROSPECT_SECTION_META[s]?.title }}
+                </UBadge>
+              </template>
+              <UBadge
+                v-else
+                color="neutral"
+                variant="subtle"
+                size="xs"
+              >
+                未歸類
+              </UBadge>
+
+              <span
+                v-if="c.location"
+                class="text-xs text-muted"
+              >· {{ c.location }}</span>
+            </div>
+            <div class="text-xs text-muted">
+              上次跟進：{{ timeAgo(c.lastFollowUp) }}
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between gap-2 pt-2 border-t border-default/50 mt-1">
+            <div>
+              <UButton
+                v-if="!sections.length"
+                icon="i-lucide-user-plus"
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                title="加入每日任務區塊"
+                @click="openPicker('develop', c.id)"
+              >
+                加入區塊
+              </UButton>
+            </div>
+
+            <div class="flex items-center gap-1.5 ml-auto">
+              <UButton
+                icon="i-lucide-pencil"
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                title="編輯明細"
+                @click="openDetail(c)"
+              />
+              <UButton
+                icon="i-lucide-check"
+                color="primary"
+                variant="soft"
+                size="xs"
+                :loading="marking.has(c.id)"
+                :disabled="marking.has(c.id)"
+                @click="markDone(c)"
+              >
+                今天已跟進
+              </UButton>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 開發名單 -->
     <section>
       <div class="flex items-end justify-between mb-2">
         <div>
-          <h2 class="font-bold text-base">
+          <h2 class="font-bold text-base flex items-center gap-2">
             {{ PROSPECT_SECTION_META.develop.title }}
+            <span class="text-xs text-muted font-normal">({{ bySection.develop.length }} 人)</span>
           </h2>
         </div>
         <UButton
@@ -183,7 +380,7 @@ function onDetailSaved(updated: Contact) {
               <th class="px-2 py-2 text-left font-medium whitespace-nowrap">
                 等級
               </th>
-              <th class="w-16 px-2 py-2" />
+              <th class="w-24 px-2 py-2" />
             </tr>
           </thead>
           <tbody>
@@ -195,13 +392,14 @@ function onDetailSaved(updated: Contact) {
                 colspan="9"
                 class="text-muted text-center py-8"
               >
-                還沒有名單，點右上角「從總名單加入」開始。
+                {{ onlyTodayFollowUp ? '此區塊今天沒有待跟進的名單。' : '還沒有名單，點右上角「從總名單加入」開始。' }}
               </td>
             </tr>
             <tr
               v-for="(p, i) in bySection.develop"
               :key="p.id"
               class="border-t border-default hover:bg-elevated/30"
+              :class="isTodayFollowUp(p.contact, today) ? 'bg-primary-500/5' : ''"
             >
               <td class="px-2 py-1 text-center text-muted tabular-nums">
                 {{ i + 1 }}
@@ -218,7 +416,17 @@ function onDetailSaved(updated: Contact) {
                 />
               </td>
               <td class="px-2 py-1 font-medium whitespace-nowrap">
-                {{ p.contact.name }}
+                <div class="flex items-center gap-1.5">
+                  <span>{{ p.contact.name }}</span>
+                  <UBadge
+                    v-if="isTodayFollowUp(p.contact, today) && topReason(p.contact, today)"
+                    :color="reasonColor(topReason(p.contact, today)?.kind)"
+                    variant="subtle"
+                    size="xs"
+                  >
+                    {{ topReason(p.contact, today)?.label }}
+                  </UBadge>
+                </div>
               </td>
               <td class="px-2 py-1 whitespace-nowrap">
                 <span :class="p.contact.friendOf ? '' : 'text-dimmed'">{{
@@ -256,6 +464,17 @@ function onDetailSaved(updated: Contact) {
               </td>
               <td class="px-1 py-1 text-right whitespace-nowrap">
                 <UButton
+                  v-if="isTodayFollowUp(p.contact, today)"
+                  icon="i-lucide-check"
+                  color="primary"
+                  variant="soft"
+                  size="xs"
+                  title="今天已跟進"
+                  :loading="marking.has(p.contact.id)"
+                  :disabled="marking.has(p.contact.id)"
+                  @click="markDone(p.contact)"
+                />
+                <UButton
                   icon="i-lucide-pencil"
                   color="neutral"
                   variant="ghost"
@@ -286,8 +505,9 @@ function onDetailSaved(updated: Contact) {
       >
         <div class="flex items-end justify-between mb-2">
           <div>
-            <h2 class="font-bold text-base">
+            <h2 class="font-bold text-base flex items-center gap-2">
               {{ PROSPECT_SECTION_META[key].title }}
+              <span class="text-xs text-muted font-normal">({{ bySection[key].length }} 人)</span>
             </h2>
           </div>
           <UButton
@@ -310,7 +530,7 @@ function onDetailSaved(updated: Contact) {
                 <th class="px-2 py-2 text-left font-medium whitespace-nowrap">
                   姓名
                 </th>
-                <th class="w-16 px-2 py-2" />
+                <th class="w-24 px-2 py-2" />
               </tr>
             </thead>
             <tbody>
@@ -322,13 +542,14 @@ function onDetailSaved(updated: Contact) {
                   colspan="4"
                   class="text-muted text-center py-8"
                 >
-                  還沒有名單。
+                  {{ onlyTodayFollowUp ? '此區塊今天沒有待跟進的名單。' : '還沒有名單。' }}
                 </td>
               </tr>
               <tr
                 v-for="(p, i) in bySection[key]"
                 :key="p.id"
                 class="border-t border-default hover:bg-elevated/30"
+                :class="isTodayFollowUp(p.contact, today) ? 'bg-primary-500/5' : ''"
               >
                 <td class="px-2 py-1 text-center text-muted tabular-nums">
                   {{ i + 1 }}
@@ -345,9 +566,30 @@ function onDetailSaved(updated: Contact) {
                   />
                 </td>
                 <td class="px-2 py-1 font-medium">
-                  {{ p.contact.name }}
+                  <div class="flex items-center gap-1.5 flex-wrap">
+                    <span>{{ p.contact.name }}</span>
+                    <UBadge
+                      v-if="isTodayFollowUp(p.contact, today) && topReason(p.contact, today)"
+                      :color="reasonColor(topReason(p.contact, today)?.kind)"
+                      variant="subtle"
+                      size="xs"
+                    >
+                      {{ topReason(p.contact, today)?.label }}
+                    </UBadge>
+                  </div>
                 </td>
                 <td class="px-1 py-1 text-right whitespace-nowrap">
+                  <UButton
+                    v-if="isTodayFollowUp(p.contact, today)"
+                    icon="i-lucide-check"
+                    color="primary"
+                    variant="soft"
+                    size="xs"
+                    title="今天已跟進"
+                    :loading="marking.has(p.contact.id)"
+                    :disabled="marking.has(p.contact.id)"
+                    @click="markDone(p.contact)"
+                  />
                   <UButton
                     icon="i-lucide-pencil"
                     color="neutral"
@@ -376,8 +618,9 @@ function onDetailSaved(updated: Contact) {
     <section>
       <div class="flex items-end justify-between mb-2">
         <div>
-          <h2 class="font-bold text-base">
+          <h2 class="font-bold text-base flex items-center gap-2">
             {{ PROSPECT_SECTION_META.network.title }}
+            <span class="text-xs text-muted font-normal">({{ bySection.network.length }} 人)</span>
           </h2>
         </div>
         <UButton
@@ -400,7 +643,7 @@ function onDetailSaved(updated: Contact) {
               <th class="px-2 py-2 text-left font-medium whitespace-nowrap">
                 狀態
               </th>
-              <th class="w-16 px-2 py-2" />
+              <th class="w-24 px-2 py-2" />
             </tr>
           </thead>
           <tbody>
@@ -412,19 +655,30 @@ function onDetailSaved(updated: Contact) {
                 colspan="4"
                 class="text-muted text-center py-8"
               >
-                還沒有名單。
+                {{ onlyTodayFollowUp ? '此區塊今天沒有待跟進的名單。' : '還沒有名單。' }}
               </td>
             </tr>
             <tr
               v-for="(p, i) in bySection.network"
               :key="p.id"
               class="border-t border-default hover:bg-elevated/30"
+              :class="isTodayFollowUp(p.contact, today) ? 'bg-primary-500/5' : ''"
             >
               <td class="px-2 py-1 text-center text-muted tabular-nums">
                 {{ i + 1 }}
               </td>
               <td class="px-2 py-1 font-medium whitespace-nowrap">
-                {{ p.contact.name }}
+                <div class="flex items-center gap-1.5">
+                  <span>{{ p.contact.name }}</span>
+                  <UBadge
+                    v-if="isTodayFollowUp(p.contact, today) && topReason(p.contact, today)"
+                    :color="reasonColor(topReason(p.contact, today)?.kind)"
+                    variant="subtle"
+                    size="xs"
+                  >
+                    {{ topReason(p.contact, today)?.label }}
+                  </UBadge>
+                </div>
               </td>
               <td class="px-2 py-1">
                 <span :class="p.contact.status ? '' : 'text-dimmed'">{{
@@ -432,6 +686,17 @@ function onDetailSaved(updated: Contact) {
                 }}</span>
               </td>
               <td class="px-1 py-1 text-right whitespace-nowrap">
+                <UButton
+                  v-if="isTodayFollowUp(p.contact, today)"
+                  icon="i-lucide-check"
+                  color="primary"
+                  variant="soft"
+                  size="xs"
+                  title="今天已跟進"
+                  :loading="marking.has(p.contact.id)"
+                  :disabled="marking.has(p.contact.id)"
+                  @click="markDone(p.contact)"
+                />
                 <UButton
                   icon="i-lucide-pencil"
                   color="neutral"
@@ -455,7 +720,7 @@ function onDetailSaved(updated: Contact) {
       </div>
     </section>
 
-    <!-- 從總名單加入 -->
+    <!-- 從總名單加入 Modal -->
     <UModal
       v-model:open="pickerOpen"
       :title="`加入到「${PROSPECT_SECTION_META[pickerSection].title}」`"
@@ -500,6 +765,14 @@ function onDetailSaved(updated: Contact) {
               >{{
                 c.location
               }}</span>
+              <UBadge
+                v-if="isTodayFollowUp(c, today) && topReason(c, today)"
+                :color="reasonColor(topReason(c, today)?.kind)"
+                variant="subtle"
+                size="xs"
+              >
+                {{ topReason(c, today)?.label }}
+              </UBadge>
               <UBadge
                 v-if="c.level"
                 :color="levelColor(c.level)"

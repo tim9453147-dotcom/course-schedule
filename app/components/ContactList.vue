@@ -50,7 +50,6 @@ const LOCATION_NONE = '__none__'
 // reka-ui 的 SelectItem 不允許空字串值，故用 'all' 當哨兵。
 const stepFilter = ref<string>('all')
 const freqFilter = ref('all')
-const typeFilter = ref<string>('all')
 const locationFilter = ref<string>('all')
 const overdueOnly = ref(false)
 const sortByNext = ref(false)
@@ -66,11 +65,6 @@ const freqFilterItems = [
   { label: '全部頻率', value: 'all' },
   ...FOLLOW_UP_FREQ_OPTIONS.map(f => ({ label: f, value: f }))
 ]
-const typeFilterItems = [
-  { label: '全部類型', value: 'all' },
-  { label: '顧客', value: 'customer' },
-  { label: '準領導人', value: 'leader' }
-]
 const locationFilterItems = computed(() => [
   { label: '全部地點', value: 'all' },
   { label: '未設定', value: LOCATION_NONE },
@@ -79,7 +73,7 @@ const locationFilterItems = computed(() => [
 const freqFormItems = FOLLOW_UP_FREQ_OPTIONS.map(f => ({ label: f, value: f }))
 
 const hasActiveFilter = computed(() =>
-  overdueOnly.value || stepFilter.value !== 'all' || freqFilter.value !== 'all' || typeFilter.value !== 'all' || locationFilter.value !== 'all' || !!searchInput.value
+  overdueOnly.value || stepFilter.value !== 'all' || freqFilter.value !== 'all' || locationFilter.value !== 'all' || !!searchInput.value
 )
 
 function clearAllFilters() {
@@ -87,15 +81,11 @@ function clearAllFilters() {
   search.value = ''
   stepFilter.value = 'all'
   freqFilter.value = 'all'
-  typeFilter.value = 'all'
   locationFilter.value = 'all'
   overdueOnly.value = false
 }
 
-function getAvatarGradient(c: Contact) {
-  if (c.contactType === 'leader') {
-    return 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-bold'
-  }
+function getAvatarGradient(_c?: Contact) {
   return 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white font-bold'
 }
 
@@ -132,7 +122,6 @@ const filtered = computed(() => {
     const sid = Number(stepFilter.value)
     list = list.filter(c => (c.completedStages ?? []).includes(sid))
   }
-  if (typeFilter.value !== 'all') list = list.filter(c => c.contactType === typeFilter.value)
   if (freqFilter.value !== 'all') list = list.filter(c => c.followUpFreq === freqFilter.value)
   if (locationFilter.value === LOCATION_NONE) list = list.filter(c => !c.location)
   else if (locationFilter.value !== 'all') list = list.filter(c => c.location === locationFilter.value)
@@ -176,23 +165,6 @@ async function setBroached(c: Contact, value: boolean) {
     Object.assign(c, updated)
   } catch {
     c.broached = prev
-    notify.error('更新失敗')
-  }
-}
-
-// 名單類型（顧客／準領導人，二選一切換）
-async function setContactType(c: Contact, value: 'customer' | 'leader') {
-  if (c.contactType === value) return
-  const prev = c.contactType
-  c.contactType = value // 樂觀更新
-  try {
-    const updated = await $fetch<Contact>(`/api/contacts/${c.id}`, {
-      method: 'PATCH',
-      body: { contactType: value }
-    })
-    Object.assign(c, updated)
-  } catch {
-    c.contactType = prev
     notify.error('更新失敗')
   }
 }
@@ -332,7 +304,6 @@ const form = reactive({
   name: '',
   location: '',
   broached: false,
-  contactType: 'customer' as 'customer' | 'leader',
   completedStages: [] as number[],
   followUpFreq: '',
   lastFollowUp: '',
@@ -351,7 +322,6 @@ function openCreate() {
     name: '',
     location: '',
     broached: false,
-    contactType: 'customer',
     completedStages: [],
     followUpFreq: '',
     lastFollowUp: '',
@@ -482,7 +452,7 @@ function onMetaSaved(updated: Contact) {
         <button
           type="button"
           class="shrink-0 px-3 py-1.5 rounded-full font-medium transition-all cursor-pointer border"
-          :class="stepFilter === 'all' && freqFilter === 'all' && typeFilter === 'all' && !overdueOnly
+          :class="stepFilter === 'all' && freqFilter === 'all' && locationFilter === 'all' && !overdueOnly
             ? 'bg-primary text-inverted border-primary font-semibold shadow-2xs'
             : 'bg-elevated/40 text-muted border-default hover:border-primary/40'"
           @click="clearAllFilters"
@@ -504,28 +474,6 @@ function onMetaSaved(updated: Contact) {
             class="size-3.5"
           />
           逾期 ({{ stats.overdue }})
-        </button>
-
-        <button
-          type="button"
-          class="shrink-0 px-3 py-1.5 rounded-full font-medium transition-all cursor-pointer border"
-          :class="typeFilter === 'customer'
-            ? 'bg-emerald-600 text-white border-emerald-600 font-semibold shadow-2xs'
-            : 'bg-elevated/40 text-muted border-default hover:border-emerald-500/40'"
-          @click="typeFilter = typeFilter === 'customer' ? 'all' : 'customer'"
-        >
-          顧客
-        </button>
-
-        <button
-          type="button"
-          class="shrink-0 px-3 py-1.5 rounded-full font-medium transition-all cursor-pointer border"
-          :class="typeFilter === 'leader'
-            ? 'bg-indigo-600 text-white border-indigo-600 font-semibold shadow-2xs'
-            : 'bg-elevated/40 text-muted border-default hover:border-indigo-500/40'"
-          @click="typeFilter = typeFilter === 'leader' ? 'all' : 'leader'"
-        >
-          準領導人
         </button>
 
         <button
@@ -628,25 +576,14 @@ function onMetaSaved(updated: Contact) {
             />
           </div>
         </div>
-        <div class="grid grid-cols-2 gap-2">
-          <div class="space-y-1">
-            <span class="text-xs text-muted font-medium">名單類型</span>
-            <USelect
-              v-model="typeFilter"
-              :items="typeFilterItems"
-              size="sm"
-              class="w-full"
-            />
-          </div>
-          <div class="space-y-1">
-            <span class="text-xs text-muted font-medium">地點</span>
-            <USelect
-              v-model="locationFilter"
-              :items="locationFilterItems"
-              size="sm"
-              class="w-full"
-            />
-          </div>
+        <div class="space-y-1">
+          <span class="text-xs text-muted font-medium">地點</span>
+          <USelect
+            v-model="locationFilter"
+            :items="locationFilterItems"
+            size="sm"
+            class="w-full"
+          />
         </div>
         <div class="flex justify-end pt-1">
           <button
@@ -748,26 +685,8 @@ function onMetaSaved(updated: Contact) {
               </div>
             </div>
 
-            <!-- 右上角：顧客/準領導人 切換與操作 -->
+            <!-- 右上角：編輯與刪除操作 -->
             <div class="flex items-center gap-1 shrink-0">
-              <div class="inline-flex rounded-full border border-default p-0.5 bg-elevated/40 text-xs font-medium">
-                <button
-                  type="button"
-                  class="px-2 py-0.5 rounded-full cursor-pointer transition-all text-xs"
-                  :class="c.contactType === 'customer' ? 'bg-emerald-600 text-white font-semibold shadow-2xs' : 'text-dimmed hover:text-foreground'"
-                  @click="setContactType(c, 'customer')"
-                >
-                  顧客
-                </button>
-                <button
-                  type="button"
-                  class="px-2 py-0.5 rounded-full cursor-pointer transition-all text-xs"
-                  :class="c.contactType === 'leader' ? 'bg-indigo-600 text-white font-semibold shadow-2xs' : 'text-dimmed hover:text-foreground'"
-                  @click="setContactType(c, 'leader')"
-                >
-                  準領導人
-                </button>
-              </div>
               <UButton
                 icon="i-lucide-pencil"
                 color="neutral"
@@ -907,9 +826,7 @@ function onMetaSaved(updated: Contact) {
                   />
                 </div>
               </th>
-              <th class="text-left font-medium px-3 py-2 whitespace-nowrap">
-                類型
-              </th>
+
               <th class="font-medium px-2 py-2 text-center whitespace-nowrap">
                 <button
                   type="button"
@@ -1024,27 +941,7 @@ function onMetaSaved(updated: Contact) {
                   @delete="removeLocationOption"
                 />
               </td>
-              <!-- 名單類型：顧客／準領導人 二選一切換 -->
-              <td class="px-2 py-1.5 whitespace-nowrap">
-                <div class="inline-flex rounded-full border border-default overflow-hidden text-xs font-medium">
-                  <button
-                    type="button"
-                    class="px-2.5 py-1 cursor-pointer transition-colors"
-                    :class="c.contactType === 'customer' ? 'bg-primary text-inverted' : 'text-dimmed hover:bg-elevated'"
-                    @click="setContactType(c, 'customer')"
-                  >
-                    顧客
-                  </button>
-                  <button
-                    type="button"
-                    class="px-2.5 py-1 cursor-pointer transition-colors"
-                    :class="c.contactType === 'leader' ? 'bg-primary text-inverted' : 'text-dimmed hover:bg-elevated'"
-                    @click="setContactType(c, 'leader')"
-                  >
-                    準領導人
-                  </button>
-                </div>
-              </td>
+
               <!-- 破題與否：二選一切換 -->
               <td class="px-2 py-1.5 whitespace-nowrap">
                 <div class="inline-flex rounded-full border border-default overflow-hidden text-xs font-medium">
@@ -1185,27 +1082,6 @@ function onMetaSaved(updated: Contact) {
                 @click="form.broached = true"
               >
                 破題
-              </button>
-            </div>
-          </UFormField>
-
-          <UFormField label="類型">
-            <div class="inline-flex rounded-lg border border-default overflow-hidden text-sm font-medium">
-              <button
-                type="button"
-                class="px-4 py-1.5 cursor-pointer transition-colors"
-                :class="form.contactType === 'customer' ? 'bg-primary text-inverted' : 'hover:bg-elevated'"
-                @click="form.contactType = 'customer'"
-              >
-                顧客
-              </button>
-              <button
-                type="button"
-                class="px-4 py-1.5 cursor-pointer transition-colors"
-                :class="form.contactType === 'leader' ? 'bg-primary text-inverted' : 'hover:bg-elevated'"
-                @click="form.contactType = 'leader'"
-              >
-                準領導人
               </button>
             </div>
           </UFormField>
