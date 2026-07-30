@@ -1147,7 +1147,6 @@ function handleTouchCancel() {
 
 <template>
   <!-- 手機版縮小左右 padding 讓課表接近滿版、日期欄位更寬；桌機維持原本留白 -->
-<<<<<<< HEAD
   <UContainer class="py-4 md:py-8 px-1.5 sm:px-6 lg:px-8">
     <!-- 手機版視圖 (<768px) -->
     <div class="md:hidden">
@@ -1214,117 +1213,6 @@ function handleTouchCancel() {
           </template>
         </ClientOnly>
       </div>
-=======
-  <UContainer class="py-4 sm:py-8 px-1.5 sm:px-6 lg:px-8">
-    <!-- 教室分頁與工具列 -->
-    <div
-      v-if="tabItems.length > 1 || canEdit"
-      class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3 sm:mb-4"
-    >
-      <!-- 教室頁籤（手機版水平捲動，隱藏滾動條） -->
-      <div class="overflow-x-auto no-scrollbar pb-1 sm:pb-0 flex-1">
-        <UTabs
-          v-if="tabItems.length > 1"
-          v-model="classroom"
-          :items="tabItems"
-          class="w-full min-w-max"
-        />
-      </div>
-
-      <!-- 桌機版動作按鈕 -->
-      <div
-        v-if="canEdit"
-        class="hidden sm:flex shrink-0 gap-2"
-      >
-        <UButton
-          icon="i-lucide-upload"
-          color="neutral"
-          variant="outline"
-          @click="openImport"
-        >
-          匯入
-        </UButton>
-        <UButton
-          icon="i-lucide-plus"
-          @click="openCreate"
-        >
-          新增
-        </UButton>
-      </div>
-    </div>
-
-    <!-- 手機版專用日曆控制列（檢視切換：月 / 週 / 日 + 今天） -->
-    <div class="sm:hidden flex items-center justify-between gap-2 mb-3 bg-elevated/40 p-1.5 rounded-xl border border-default/50">
-      <div class="flex items-center gap-1">
-        <UButton
-          size="xs"
-          color="neutral"
-          variant="ghost"
-          icon="i-lucide-calendar"
-          @click="goToday"
-        >
-          今天
-        </UButton>
-      </div>
-      <div class="flex items-center gap-1">
-        <UButton
-          size="xs"
-          :color="currentViewType === 'dayGridMonth' ? 'primary' : 'neutral'"
-          :variant="currentViewType === 'dayGridMonth' ? 'solid' : 'ghost'"
-          @click="setCalendarView('dayGridMonth')"
-        >
-          月
-        </UButton>
-        <UButton
-          size="xs"
-          :color="currentViewType === 'timeGridWeek' ? 'primary' : 'neutral'"
-          :variant="currentViewType === 'timeGridWeek' ? 'solid' : 'ghost'"
-          @click="setCalendarView('timeGridWeek')"
-        >
-          週
-        </UButton>
-        <UButton
-          size="xs"
-          :color="currentViewType === 'timeGridDay' ? 'primary' : 'neutral'"
-          :variant="currentViewType === 'timeGridDay' ? 'solid' : 'ghost'"
-          @click="setCalendarView('timeGridDay')"
-        >
-          日
-        </UButton>
-        <UButton
-          v-if="canEdit"
-          size="xs"
-          color="neutral"
-          variant="outline"
-          icon="i-lucide-upload"
-          class="ml-1"
-          @click="openImport"
-        >
-          匯入
-        </UButton>
-      </div>
-    </div>
-
-    <div
-      class="schedule-calendar"
-      :class="{ 'is-editable': canEdit }"
-      @touchstart.capture="handleTouchStart"
-      @touchmove.capture="handleTouchMove"
-      @touchend.capture="handleTouchEnd"
-      @touchcancel.capture="handleTouchCancel"
-    >
-      <ClientOnly>
-        <FullCalendar
-          ref="calendarRef"
-          :options="calendarOptions"
-        />
-        <template #fallback>
-          <div class="text-muted py-16 text-center">
-            月曆載入中…
-          </div>
-        </template>
-      </ClientOnly>
->>>>>>> 7c9a7e094b2e4e213b56421e106cc4c400079547
     </div>
 
     <!-- 手機版 FAB Floating Action Button（參考 Google Calendar 手機 App） -->
