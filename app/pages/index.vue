@@ -268,6 +268,9 @@ const form = reactive({
 })
 
 function resetForm() {
+  editingSource.value = 'event'
+  editingId.value = null
+  editingOccurrenceDate.value = ''
   Object.assign(form, {
     kind: 'activity',
     repeat: 'none',
@@ -541,7 +544,7 @@ function toLocalDateStr(d: Date) {
   return `${y}-${m}-${day}`
 }
 
-// 拖曳事件 → 改日期（單次活動）或改星期（每週課程）
+// 拖曳事件 → 改日期（單次活動）或改星期/日期（每週課程）
 async function onEventDrop(info: EventDropArg) {
   if (!canEdit.value) {
     info.revert()
@@ -570,16 +573,42 @@ async function onEventDrop(info: EventDropArg) {
       notify.success(`已移到 ${newDate}${startTime ? ` ${startTime}` : ''}`)
     } else {
       const c = courses.value?.find(x => x.id === refId)
-      if (!c) return
-      // 拖曳移動的天數，換算成新的星期（1=週一 ... 7=週日）
-      const deltaDays = info.delta.days
-      const newDay = ((c.dayOfWeek - 1 + deltaDays) % 7 + 7) % 7 + 1
-      await $fetch(`/api/courses/${refId}`, {
-        method: 'PUT',
-        body: { ...c, dayOfWeek: newDay }
+      if (!c || !info.event.start) return
+      // 拖曳每週課程：復原視覺移動，彈出「修改範圍」讓使用者選擇
+      info.revert()
+      const occ = (info.event.extendedProps.occDate as string) || (info.oldEvent.start ? toLocalDateStr(info.oldEvent.start) : todayStr())
+      const newDate = toLocalDateStr(info.event.start)
+      editingSource.value = 'course'
+      editingId.value = refId
+      editingOccurrenceDate.value = occ
+
+      let startTime = c.startTime ?? ''
+      let endTime = c.endTime ?? ''
+      if (isTimeGrid.value && !info.event.allDay) {
+        startTime = toLocalTimeStr(info.event.start)
+        endTime = info.event.end ? toLocalTimeStr(info.event.end) : plusOneHour(startTime)
+      }
+
+      Object.assign(form, {
+        kind: c.kind ?? 'course',
+        repeat: 'weekly',
+        classroom: c.classroom,
+        title: c.title,
+        host: c.host ?? '',
+        sharer: c.sharer ?? '',
+        summarizer: c.summarizer ?? '',
+        pm: c.pm ?? '',
+        date: newDate,
+        startTime,
+        endTime,
+        location: c.location ?? '',
+        color: c.color,
+        note: c.note ?? ''
       })
-      await refreshCourses()
-      notify.success(`已改到${dayName(newDay)}`)
+
+      mode.value = 'edit'
+      editScope.value = 'this'
+      scopeOpen.value = true
     }
   } catch {
     info.revert()
@@ -620,14 +649,15 @@ async function save() {
         classroom: form.classroom, kind: form.kind, title: form.title,
         host: form.host, sharer: form.sharer, summarizer: form.summarizer, pm: form.pm,
         dayOfWeek: weekdayOf(form.date), startTime: form.startTime, endTime: form.endTime,
-        location: form.location, color: form.color, note: form.note
+        location: form.location, color: form.color, note: form.note,
+        startDate: form.date
       }
       if (mode.value === 'create') {
         await $fetch('/api/courses', { method: 'POST', body })
       } else if (editingSource.value === 'course') {
         await $fetch(`/api/courses/${editingId.value}`, { method: 'PUT', body })
       } else {
-        // 原本是單次活動，改成每週 → 在 courses 新增、刪掉舊的 event
+        // 原本是單次活動，改成每週 → 在 courses 新增 (startDate 帶入 form.date)、刪掉舊的 event
         await $fetch('/api/courses', { method: 'POST', body })
         await $fetch(`/api/events/${editingId.value}`, { method: 'DELETE' })
       }
@@ -672,19 +702,20 @@ async function applyCourseEdit(scope: 'this' | 'following' | 'all') {
   const orig = courses.value?.find(c => c.id === editingId.value)
   if (!orig) return
   const occ = editingOccurrenceDate.value || form.date
+  const targetDate = form.date || occ
 
   // 表單目前的「新內容」（套用到課程）
   const courseBody = {
     classroom: form.classroom, kind: form.kind, title: form.title,
     host: form.host, sharer: form.sharer, summarizer: form.summarizer, pm: form.pm,
-    dayOfWeek: weekdayOf(form.date), startTime: form.startTime, endTime: form.endTime,
+    dayOfWeek: weekdayOf(targetDate), startTime: form.startTime, endTime: form.endTime,
     location: form.location, color: form.color, note: form.note
   }
   // 表單目前的「新內容」（套用到單次活動）
   const eventBody = {
     classroom: form.classroom, kind: form.kind, title: form.title,
     host: form.host, sharer: form.sharer, summarizer: form.summarizer, pm: form.pm,
-    date: form.date || occ, startTime: form.startTime, endTime: form.endTime,
+    date: targetDate, startTime: form.startTime, endTime: form.endTime,
     location: form.location, color: form.color, note: form.note
   }
   // 原課程的內容欄位（拆段時，被保留的那一段維持原樣）
@@ -719,23 +750,23 @@ async function applyCourseEdit(scope: 'this' | 'following' | 'all') {
       }
     } else {
       if (scope === 'all') {
-        // 全部：只改內容，重複範圍／例外日不動
+        // 全部：只改內容，重複範圍／例外日不動（更新 dayOfWeek）
         await $fetch(`/api/courses/${orig.id}`, {
           method: 'PUT',
           body: { ...courseBody, startDate: orig.startDate ?? '', endDate: orig.endDate ?? '', exDates: origEx }
         })
       } else if (scope === 'following') {
-        // 這次及之後：原課結束於 occ 前一天；自 occ 起新建一段套用新內容
+        // 這次及之後：原課結束於 occ 前一天；自 targetDate 起新建一段套用新內容 (startDate 設為 targetDate)
         await $fetch(`/api/courses/${orig.id}`, {
           method: 'PUT',
           body: { ...origBody, startDate: orig.startDate ?? '', endDate: dayBefore(occ), exDates: origEx.filter(d => d < occ) }
         })
         await $fetch('/api/courses', {
           method: 'POST',
-          body: { ...courseBody, startDate: occ, endDate: orig.endDate ?? '', exDates: origEx.filter(d => d >= occ) }
+          body: { ...courseBody, startDate: targetDate, endDate: orig.endDate ?? '', exDates: origEx.filter(d => d >= targetDate) }
         })
       } else {
-        // 僅這一次：把 occ 加進原課例外日，並在該日建立單次活動覆寫
+        // 僅這一次：把原本點擊日 occ 加進原課例外日，並在目標日 targetDate 建立單次活動覆寫
         const exDates = Array.from(new Set([...origEx, occ]))
         await $fetch(`/api/courses/${orig.id}`, {
           method: 'PUT',
@@ -743,12 +774,7 @@ async function applyCourseEdit(scope: 'this' | 'following' | 'all') {
         })
         await $fetch('/api/events', {
           method: 'POST',
-          body: {
-            classroom: form.classroom, kind: form.kind, title: form.title,
-            host: form.host, sharer: form.sharer, summarizer: form.summarizer, pm: form.pm,
-            date: occ, startTime: form.startTime, endTime: form.endTime,
-            location: form.location, color: form.color, note: form.note
-          }
+          body: eventBody
         })
       }
     }
@@ -779,8 +805,34 @@ async function deleteEntry(source: 'course' | 'event', id: number, title: string
 
   if (!(await confirm({ title: '刪除', description: `確定刪除「${title}」？`, danger: true }))) return false
   try {
+    const deletingEvent = events.value?.find(e => e.id === id)
     await $fetch(`/api/events/${id}`, { method: 'DELETE' })
-    await refreshEvents()
+
+    // 若刪除的是「僅這一次」產生的覆寫活動，嘗試復原原每週課程在該日的例外日 (exDates)
+    if (deletingEvent) {
+      const matchDow = weekdayOf(deletingEvent.date)
+      const matchingCourse = courses.value?.find(c =>
+        c.classroom === deletingEvent.classroom
+        && c.dayOfWeek === matchDow
+        && (c.exDates ?? []).includes(deletingEvent.date)
+      )
+      if (matchingCourse) {
+        const newEx = (matchingCourse.exDates ?? []).filter(d => d !== deletingEvent.date)
+        await $fetch(`/api/courses/${matchingCourse.id}`, {
+          method: 'PUT',
+          body: {
+            classroom: matchingCourse.classroom, kind: matchingCourse.kind, title: matchingCourse.title,
+            host: matchingCourse.host, sharer: matchingCourse.sharer, summarizer: matchingCourse.summarizer, pm: matchingCourse.pm,
+            dayOfWeek: matchingCourse.dayOfWeek, startTime: matchingCourse.startTime, endTime: matchingCourse.endTime,
+            location: matchingCourse.location, color: matchingCourse.color, note: matchingCourse.note,
+            startDate: matchingCourse.startDate ?? '', endDate: matchingCourse.endDate ?? '',
+            exDates: newEx
+          }
+        })
+      }
+    }
+
+    await Promise.all([refreshCourses(), refreshEvents()])
     notify.success('已刪除')
     detailOpen.value = false
     return true
