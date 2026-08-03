@@ -63,14 +63,14 @@
 6. `shouldSend === true`：
    - 檢查設定（群組 ID + access token）；缺 → 回 `{ sent:false, reason:'not_configured' }`，**不標記**（設定好後下次可發）。
    - 組合訊息（今日課表區塊 + 視情況的異動區塊）→ `linePush`。
-   - 成功：標記已撈異動的 `notifiedAt`、寫 `notification_logs`，回 `{ sent:true, todayCount, changeCount }`。
+   - 成功：標記已撈異動的 `notifiedAt`、寫 `notification_logs`，回 `{ sent:true, tomorrowCount, changeCount }`。
    - 失敗：寫 `notification_logs`，**不標記**（下次 cron 重試），回 `{ sent:false, reason:'send_failed' }`。
 
 ## 要改 / 新增的檔案
 
 - 新增 `server/utils/todaySchedule.ts`：
   - `getTaiwanToday()` → `{ date: 'YYYY-MM-DD', dayOfWeek: 1..7, month, day, weekdayLabel }`
-  - `collectTodaySchedule(db, today)` → 依教室分組、組內排序的今日項目
+  - `collectTomorrowSchedule(db, today)` → 依教室分組、組內排序的今日項目
   - `buildTodayScheduleBlock(grouped, today)` → 今日課表文字區塊
 - 修改 `server/api/notifications/daily-digest.post.ts`：加入今日課表、調整發送條件與訊息組裝；`buildDigestMessage`（異動區塊）拆成可被合併的片段。
 - **純後端**：無 schema、無 migration。

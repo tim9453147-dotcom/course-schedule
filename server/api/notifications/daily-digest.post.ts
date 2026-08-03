@@ -2,7 +2,7 @@ import { eq, isNull, inArray } from 'drizzle-orm'
 import { scheduleChanges, settings, notificationLogs } from '../../db/schema'
 import type { ScheduleChange } from '../../db/schema'
 import { useDb } from '../../utils/db'
-import { getTaiwanTomorrow, type TodayInfo, type TodayItem } from '../../utils/todaySchedule'
+import { collectTomorrowSchedule, getTaiwanTomorrow, type TodayInfo, type TodayItem } from '../../utils/todaySchedule'
 
 // 每日通知（見 specs/0025、0026）。
 // GitHub Actions cron 每天 08:00（台灣）帶 Bearer 金鑰呼叫 → 組「今日課表 + 近期異動」→ push 到 LINE 群組。
@@ -36,8 +36,8 @@ export default defineEventHandler(async (event) => {
   const today = getTaiwanTomorrow()
 
   // 今日課表（課程 + 活動，跨教室）
-  const grouped = await collectTodaySchedule(db, today)
-  const todayCount = grouped.reduce((n, g) => n + g.items.length, 0)
+  const grouped = await collectTomorrowSchedule(db, today)
+  const tomorrowCount = grouped.reduce((n, g) => n + g.items.length, 0)
 
   // 未通知異動（依時間排序，id 作次序 tie-breaker 確保去重穩定）→ 去重取淨結果
   const pending = await db
@@ -49,7 +49,7 @@ export default defineEventHandler(async (event) => {
   const allIds = pending.map(c => c.id)
 
   // 今天沒課/活動、也沒有效異動 → 不發送（把已撈出的異動列標記，避免抵銷列殘留）
-  if (todayCount === 0 && survivors.length === 0) {
+  if (tomorrowCount === 0 && survivors.length === 0) {
     if (allIds.length > 0) await markNotified(db, allIds)
     return { sent: false, reason: 'no_changes' }
   }
@@ -62,7 +62,7 @@ export default defineEventHandler(async (event) => {
     return { sent: false, reason: 'not_configured' }
   }
 
-  const text = buildMessage(grouped, todayCount, survivors, today)
+  const text = buildMessage(grouped, tomorrowCount, survivors, today)
   const result = await linePush(config.lineChannelAccessToken, groupId, [{ type: 'text', text }])
 
   await db.insert(notificationLogs).values({
@@ -78,24 +78,24 @@ export default defineEventHandler(async (event) => {
   }
 
   if (allIds.length > 0) await markNotified(db, allIds)
-  return { sent: true, todayCount, changeCount: survivors.length }
+  return { sent: true, tomorrowCount, changeCount: survivors.length }
 })
 
 // 組合整則訊息：今日課表區塊 +（有異動時）近期異動區塊
 function buildMessage(
   grouped: { classroom: string, items: TodayItem[] }[],
-  todayCount: number,
+  tomorrowCount: number,
   survivors: Survivor[],
   today: TodayInfo
 ): string {
   const parts: string[] = []
-  if (todayCount > 0) {
+  if (tomorrowCount > 0) {
     parts.push(buildTodayScheduleBlock(grouped, today))
   }
   if (survivors.length > 0) {
     const body = buildChangesBody(survivors)
     // 有今日課表 → 異動接在分隔線下作為子區塊；否則沿用 0025 的獨立標頭
-    parts.push(todayCount > 0
+    parts.push(tomorrowCount > 0
       ? `━━━━━━━━━━\n🔔 近期異動\n\n${body}`
       : `📅 課表異動通知（${today.month}/${today.day}）\n\n${body}`)
   }

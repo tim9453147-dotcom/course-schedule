@@ -42,7 +42,7 @@ export function getTaiwanTomorrow(): TodayInfo {
 }
 
 // 收集明日課程（尊重重複範圍與例外日）+ 明日活動，依教室分組、組內按時間排序。
-export async function collectTodaySchedule(
+export async function collectTomorrowSchedule(
   db: Db,
   today: TodayInfo
 ): Promise<{ classroom: string, items: TodayItem[] }[]> {
