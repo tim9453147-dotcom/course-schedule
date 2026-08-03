@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
+import type { Course, CalEvent } from '~/utils/schedule'
 
 interface EventItem {
   title: string
@@ -19,17 +20,17 @@ const props = defineProps<{
   classrooms: string[]
   currentClassroom: string
   canEdit: boolean
-  tabItems: Array<{ label: string; value: string }>
-  courses?: any[]
-  rawEvents?: any[]
+  tabItems: Array<{ label: string, value: string }>
+  courses?: Course[]
+  rawEvents?: CalEvent[]
 }>()
 
 const emit = defineEmits<{
-  (e: 'update:currentClassroom', val: string): void
-  (e: 'select-event', event: EventItem, anchorEl?: HTMLElement): void
-  (e: 'create-event', dateStr: string): void
-  (e: 'open-import'): void
-  (e: 'change-month', year: number, month: number): void
+  'update:currentClassroom': [val: string]
+  'select-event': [event: EventItem, anchorEl?: HTMLElement]
+  'create-event': [dateStr: string]
+  'open-import': []
+  'change-month': [year: number, month: number]
 }>()
 
 // Helper for local date string YYYY-MM-DD
@@ -144,7 +145,7 @@ function onTouchEnd() {
     isAnimating.value = true
     const direction = dx < 0 ? 'next' : 'prev'
     const targetOutX = dx < 0 ? -320 : 320
-    
+
     transitionStyle.value = 'transform 140ms cubic-bezier(0.4, 0, 1, 1), opacity 140ms ease-out'
     gridTranslateX.value = targetOutX
 
@@ -192,7 +193,7 @@ const calendarDays = computed(() => {
   const daysInMonth = lastDay.getDate()
   const startingDay = firstDay.getDay()
 
-  const days: Array<{ dateStr: string; dayNum: number; isCurrentMonth: boolean; isToday: boolean }> = []
+  const days: Array<{ dateStr: string, dayNum: number, isCurrentMonth: boolean, isToday: boolean }> = []
 
   // 上個月補格
   const prevMonthLastDay = new Date(year, month, 0).getDate()
@@ -244,7 +245,7 @@ const currentMonthPrefix = computed(() => {
 // 📜【整個月的所有課程按日期分組】（下面表格切換至全月模式時使用）
 const currentMonthGroupedEvents = computed(() => {
   const prefix = currentMonthPrefix.value
-  const result: Array<{ dateStr: string; label: string; isToday: boolean; events: EventItem[] }> = []
+  const result: Array<{ dateStr: string, label: string, isToday: boolean, events: EventItem[] }> = []
 
   const dateKeys = Array.from(eventsByDate.value.keys())
     .filter(k => k.startsWith(prefix))
@@ -330,7 +331,7 @@ function getEventExtra(ev: EventItem) {
         c.sharer ? { label: '分享', name: c.sharer } : null,
         c.summarizer ? { label: '總結', name: c.summarizer } : null,
         c.pm ? { label: 'PM', name: c.pm } : null
-      ].filter(Boolean)
+      ].filter((x): x is { label: string, name: string } => Boolean(x))
       return {
         kind: c.kind ?? 'course',
         kindLabel: (c.kind === 'course' ? '課程' : '活動'),
@@ -348,7 +349,7 @@ function getEventExtra(ev: EventItem) {
         e.sharer ? { label: '分享', name: e.sharer } : null,
         e.summarizer ? { label: '總結', name: e.summarizer } : null,
         e.pm ? { label: 'PM', name: e.pm } : null
-      ].filter(Boolean)
+      ].filter((x): x is { label: string, name: string } => Boolean(x))
       return {
         kind: e.kind ?? 'activity',
         kindLabel: (e.kind === 'course' ? '課程' : '活動'),
@@ -386,8 +387,11 @@ function onDayClick(dateStr: string) {
         class="flex-1 max-w-[calc(100%-5.5rem)]"
         @update:model-value="val => emit('update:currentClassroom', String(val))"
       />
-      <div v-else class="flex-1" />
-      
+      <div
+        v-else
+        class="flex-1"
+      />
+
       <!-- 匯入課表按鈕 -->
       <UButton
         v-if="props.canEdit"
@@ -480,7 +484,10 @@ function onDayClick(dateStr: string) {
             <span>{{ d.dayNum }}</span>
 
             <!-- 格子內部：課程名稱預覽簡籤與彩色小點 -->
-            <div v-if="eventsByDate.has(d.dateStr)" class="flex flex-col items-center justify-center w-full px-0.5 mt-0.5 space-y-0.5">
+            <div
+              v-if="eventsByDate.has(d.dateStr)"
+              class="flex flex-col items-center justify-center w-full px-0.5 mt-0.5 space-y-0.5"
+            >
               <span
                 v-if="eventsByDate.get(d.dateStr)?.[0]"
                 class="w-full text-[9px] truncate leading-none py-0.5 px-0.5 rounded font-semibold scale-90"
@@ -497,7 +504,10 @@ function onDayClick(dateStr: string) {
                 />
               </div>
             </div>
-            <div v-else class="h-2" />
+            <div
+              v-else
+              class="h-2"
+            />
           </button>
         </div>
       </div>
@@ -512,7 +522,10 @@ function onDayClick(dateStr: string) {
         <div class="flex items-center gap-2">
           <span class="flex size-2.5 rounded-full bg-primary animate-ping" />
           <h3 class="text-sm font-bold text-primary flex items-center gap-1">
-            <UIcon name="i-lucide-sparkles" class="size-4" />
+            <UIcon
+              name="i-lucide-sparkles"
+              class="size-4"
+            />
             今日課程速覽 ({{ todayFormattedLabel }})
           </h3>
         </div>
@@ -583,7 +596,10 @@ function onDayClick(dateStr: string) {
 
     <!-- 🌟【模式 1：當日行程列表】 -->
     <template v-if="listScope === 'day'">
-      <div v-if="selectedDayEvents.length > 0" class="space-y-3">
+      <div
+        v-if="selectedDayEvents.length > 0"
+        class="space-y-3"
+      >
         <div
           v-for="(ev, i) in selectedDayEvents"
           :key="i"
@@ -603,13 +619,19 @@ function onDayClick(dateStr: string) {
               >
                 {{ getEventExtra(ev).kindLabel }}
               </span>
-              <span v-if="getEventExtra(ev).repeatLabel" class="text-[11px] text-muted font-medium">
+              <span
+                v-if="getEventExtra(ev).repeatLabel"
+                class="text-[11px] text-muted font-medium"
+              >
                 {{ getEventExtra(ev).repeatLabel }}
               </span>
             </div>
 
             <div class="flex items-center gap-1 text-xs font-bold text-default bg-elevated px-2.5 py-1 rounded-full border border-default/60 shadow-2xs">
-              <UIcon name="i-lucide-clock" class="size-3.5 text-primary" />
+              <UIcon
+                name="i-lucide-clock"
+                class="size-3.5 text-primary"
+              />
               <span>{{ ev.allDay ? '全天' : (ev.end ? `${ev.start.slice(11, 16)}–${ev.end.slice(11, 16)}` : ev.start.slice(11, 16)) }}</span>
             </div>
           </div>
@@ -620,12 +642,21 @@ function onDayClick(dateStr: string) {
             </h4>
           </div>
 
-          <div v-if="getEventExtra(ev).location" class="flex items-center gap-1.5 pl-1 text-xs text-muted">
-            <UIcon name="i-lucide-map-pin" class="size-3.5 text-rose-500 shrink-0" />
+          <div
+            v-if="getEventExtra(ev).location"
+            class="flex items-center gap-1.5 pl-1 text-xs text-muted"
+          >
+            <UIcon
+              name="i-lucide-map-pin"
+              class="size-3.5 text-rose-500 shrink-0"
+            />
             <span class="font-medium text-default/90">{{ getEventExtra(ev).location }}</span>
           </div>
 
-          <div v-if="getEventExtra(ev).roles.length > 0" class="flex flex-wrap items-center gap-1.5 pl-1 pt-1.5 border-t border-default/40">
+          <div
+            v-if="getEventExtra(ev).roles.length > 0"
+            class="flex flex-wrap items-center gap-1.5 pl-1 pt-1.5 border-t border-default/40"
+          >
             <div
               v-for="(r, rIdx) in getEventExtra(ev).roles"
               :key="rIdx"
@@ -636,21 +667,40 @@ function onDayClick(dateStr: string) {
             </div>
           </div>
 
-          <div v-if="getEventExtra(ev).note" class="pl-1 pt-1 text-xs text-muted flex items-start gap-1">
-            <UIcon name="i-lucide-align-left" class="size-3.5 mt-0.5 shrink-0 text-muted/60" />
+          <div
+            v-if="getEventExtra(ev).note"
+            class="pl-1 pt-1 text-xs text-muted flex items-start gap-1"
+          >
+            <UIcon
+              name="i-lucide-align-left"
+              class="size-3.5 mt-0.5 shrink-0 text-muted/60"
+            />
             <span class="line-clamp-2">{{ getEventExtra(ev).note }}</span>
           </div>
 
-          <UIcon name="i-lucide-chevron-right" class="absolute right-3 top-1/2 -translate-y-1/2 size-5 text-muted/30 group-hover:text-primary transition" />
+          <UIcon
+            name="i-lucide-chevron-right"
+            class="absolute right-3 top-1/2 -translate-y-1/2 size-5 text-muted/30 group-hover:text-primary transition"
+          />
         </div>
       </div>
 
-      <div v-else class="flex flex-col items-center justify-center py-12 text-center rounded-2xl border border-dashed border-default/70 bg-elevated/20 px-4">
+      <div
+        v-else
+        class="flex flex-col items-center justify-center py-12 text-center rounded-2xl border border-dashed border-default/70 bg-elevated/20 px-4"
+      >
         <div class="size-12 rounded-full bg-primary/10 flex items-center justify-center mb-3">
-          <UIcon name="i-lucide-calendar-x" class="size-6 text-primary" />
+          <UIcon
+            name="i-lucide-calendar-x"
+            class="size-6 text-primary"
+          />
         </div>
-        <p class="text-base font-bold text-default">該日無排課或活動</p>
-        <p class="text-xs text-muted mt-1">點選右下角「＋」可新增行程</p>
+        <p class="text-base font-bold text-default">
+          該日無排課或活動
+        </p>
+        <p class="text-xs text-muted mt-1">
+          點選右下角「＋」可新增行程
+        </p>
         <UButton
           v-if="props.canEdit"
           icon="i-lucide-plus"
@@ -667,7 +717,10 @@ function onDayClick(dateStr: string) {
 
     <!-- 🌟【模式 2：整月課程總覽列表】 (下方表格切換成全月顯示) -->
     <template v-else-if="listScope === 'month'">
-      <div v-if="currentMonthGroupedEvents.length > 0" class="space-y-4">
+      <div
+        v-if="currentMonthGroupedEvents.length > 0"
+        class="space-y-4"
+      >
         <div
           v-for="group in currentMonthGroupedEvents"
           :key="group.dateStr"
@@ -678,10 +731,16 @@ function onDayClick(dateStr: string) {
               class="size-2.5 rounded-full"
               :class="group.isToday ? 'bg-primary ring-4 ring-primary/20 animate-pulse' : 'bg-muted/60'"
             />
-            <span class="text-sm font-bold text-default" :class="{ 'text-primary font-extrabold': group.isToday }">
+            <span
+              class="text-sm font-bold text-default"
+              :class="{ 'text-primary font-extrabold': group.isToday }"
+            >
               {{ group.label }}
             </span>
-            <span v-if="group.isToday" class="text-[11px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+            <span
+              v-if="group.isToday"
+              class="text-[11px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full"
+            >
               今天
             </span>
           </div>
@@ -706,14 +765,23 @@ function onDayClick(dateStr: string) {
                   >
                     {{ getEventExtra(ev).kindLabel }}
                   </span>
-                  <span v-if="getEventExtra(ev).location" class="text-xs text-muted font-medium flex items-center gap-1">
-                    <UIcon name="i-lucide-map-pin" class="size-3 text-rose-500 shrink-0" />
+                  <span
+                    v-if="getEventExtra(ev).location"
+                    class="text-xs text-muted font-medium flex items-center gap-1"
+                  >
+                    <UIcon
+                      name="i-lucide-map-pin"
+                      class="size-3 text-rose-500 shrink-0"
+                    />
                     {{ getEventExtra(ev).location }}
                   </span>
                 </div>
 
                 <div class="flex items-center gap-1 text-xs font-bold text-default bg-elevated px-2 py-0.5 rounded-full border border-default/50">
-                  <UIcon name="i-lucide-clock" class="size-3 text-primary" />
+                  <UIcon
+                    name="i-lucide-clock"
+                    class="size-3 text-primary"
+                  />
                   <span>{{ ev.allDay ? '全天' : (ev.end ? `${ev.start.slice(11, 16)}–${ev.end.slice(11, 16)}` : ev.start.slice(11, 16)) }}</span>
                 </div>
               </div>
@@ -724,7 +792,10 @@ function onDayClick(dateStr: string) {
                 </h4>
               </div>
 
-              <div v-if="getEventExtra(ev).roles.length > 0" class="flex flex-wrap items-center gap-1.5 pl-1 pt-1 border-t border-default/30">
+              <div
+                v-if="getEventExtra(ev).roles.length > 0"
+                class="flex flex-wrap items-center gap-1.5 pl-1 pt-1 border-t border-default/30"
+              >
                 <div
                   v-for="(r, rIdx) in getEventExtra(ev).roles"
                   :key="rIdx"
@@ -739,14 +810,25 @@ function onDayClick(dateStr: string) {
         </div>
       </div>
 
-      <div v-else class="flex flex-col items-center justify-center py-12 text-center rounded-2xl border border-dashed border-default/70 bg-elevated/20 px-4">
-        <UIcon name="i-lucide-calendar-x" class="size-8 text-muted/50 mb-2" />
-        <p class="text-base font-bold text-default">本月份尚無任何課程或活動</p>
+      <div
+        v-else
+        class="flex flex-col items-center justify-center py-12 text-center rounded-2xl border border-dashed border-default/70 bg-elevated/20 px-4"
+      >
+        <UIcon
+          name="i-lucide-calendar-x"
+          class="size-8 text-muted/50 mb-2"
+        />
+        <p class="text-base font-bold text-default">
+          本月份尚無任何課程或活動
+        </p>
       </div>
     </template>
 
     <!-- 右下角懸浮新增按鈕 (FAB Button) -->
-    <div v-if="props.canEdit" class="fixed bottom-6 right-5 z-40">
+    <div
+      v-if="props.canEdit"
+      class="fixed bottom-6 right-5 z-40"
+    >
       <UButton
         icon="i-lucide-plus"
         size="xl"

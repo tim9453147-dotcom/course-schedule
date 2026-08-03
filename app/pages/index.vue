@@ -74,7 +74,7 @@ function onDatesSet(arg: { startStr: string, endStr: string, view: { type: strin
   currentViewType.value = arg.view.type
 }
 
-function setCalendarView(viewName: 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay') {
+function _setCalendarView(viewName: 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay') {
   currentViewType.value = viewName
   const api = calendarRef.value?.getApi()
   if (api) {
@@ -82,7 +82,7 @@ function setCalendarView(viewName: 'dayGridMonth' | 'timeGridWeek' | 'timeGridDa
   }
 }
 
-function goToday() {
+function _goToday() {
   const api = calendarRef.value?.getApi()
   if (api) {
     api.today()
@@ -125,7 +125,7 @@ const calendarEvents = computed(() => {
         allDay: !c.startTime,
         color: colorHex(c.color),
         // occDate 記住「這是哪一次」，編輯時才知道要拆哪一天
-        extendedProps: { source: 'course', refId: c.id, occDate: ds }
+        extendedProps: { source: 'course' as const, refId: c.id, occDate: ds }
       }))
     )
 
@@ -137,7 +137,7 @@ const calendarEvents = computed(() => {
       end: e.endTime ? `${e.date}T${e.endTime}` : undefined,
       allDay: !e.startTime,
       color: colorHex(e.color),
-      extendedProps: { source: 'event', refId: e.id }
+      extendedProps: { source: 'event' as const, refId: e.id }
     }))
 
   return [...recurring, ...oneOff]
@@ -239,6 +239,16 @@ const editScopeItems = [
   { value: 'following', label: '這次及之後', description: '從這一天起的所有重複都改' },
   { value: 'all', label: '全部（包含先前）', description: '整個系列（含先前）都改' }
 ]
+
+// 刪除範圍（像 Google 日曆）：僅這一次 / 這次及之後 / 全部
+const deleteScopeOpen = ref(false)
+const deleteScope = ref<'this' | 'following' | 'all'>('this')
+const deleteScopeItems = [
+  { value: 'this', label: '僅這一次', description: '只刪除這一天，其餘週次維持原樣' },
+  { value: 'following', label: '這次及之後', description: '從這一天起的所有重複都刪除' },
+  { value: 'all', label: '全部（包含先前）', description: '刪除整個每週課程系列' }
+]
+const pendingDeleteTarget = ref<{ source: 'course' | 'event', id: number, title: string, occDate: string } | null>(null)
 
 const form = reactive({
   kind: 'activity',
@@ -466,12 +476,11 @@ function openDetailEdit() {
 // 詳情彈窗按「刪除」
 async function onDetailDelete() {
   if (!detail.value) return
-  const ok = await deleteEntry(detail.value.source, detail.value.refId, detail.value.title)
-  if (ok) detailOpen.value = false
+  await deleteEntry(detail.value.source, detail.value.refId, detail.value.title, detail.value.occDate)
 }
 
 // 手機版點行程卡片
-function onMobileEventClick(ev: any, targetEl?: HTMLElement) {
+function onMobileEventClick(ev: { extendedProps?: Record<string, unknown>, start?: string }, targetEl?: HTMLElement) {
   const source = ev.extendedProps?.source as 'course' | 'event'
   const refId = ev.extendedProps?.refId as number
   editingSource.value = source
@@ -480,7 +489,7 @@ function onMobileEventClick(ev: any, targetEl?: HTMLElement) {
   if (source === 'course') {
     const c = courses.value?.find(x => x.id === refId)
     if (!c) return
-    const occ = (ev.extendedProps?.occDate as string) || ev.start.slice(0, 10)
+    const occ = (ev.extendedProps?.occDate as string) || (ev.start ? ev.start.slice(0, 10) : todayStr())
     editingOccurrenceDate.value = occ
     detail.value = {
       source, refId, occDate: occ,
@@ -595,8 +604,8 @@ async function save() {
     return
   }
 
-  // 編輯既有「每週重複」課程 → 先問修改範圍（像 Google 日曆），不直接存
-  if (mode.value === 'edit' && editingSource.value === 'course' && form.repeat === 'weekly') {
+  // 編輯既有每週課程（原本是重複 task） → 先問修改範圍（像 Google 日曆），不論是否改為不重複
+  if (mode.value === 'edit' && editingSource.value === 'course') {
     editScope.value = 'this'
     scopeOpen.value = true
     return
@@ -671,6 +680,13 @@ async function applyCourseEdit(scope: 'this' | 'following' | 'all') {
     dayOfWeek: weekdayOf(form.date), startTime: form.startTime, endTime: form.endTime,
     location: form.location, color: form.color, note: form.note
   }
+  // 表單目前的「新內容」（套用到單次活動）
+  const eventBody = {
+    classroom: form.classroom, kind: form.kind, title: form.title,
+    host: form.host, sharer: form.sharer, summarizer: form.summarizer, pm: form.pm,
+    date: form.date || occ, startTime: form.startTime, endTime: form.endTime,
+    location: form.location, color: form.color, note: form.note
+  }
   // 原課程的內容欄位（拆段時，被保留的那一段維持原樣）
   const origBody = {
     classroom: orig.classroom, kind: orig.kind, title: orig.title,
@@ -682,38 +698,59 @@ async function applyCourseEdit(scope: 'this' | 'following' | 'all') {
 
   saving.value = true
   try {
-    if (scope === 'all') {
-      // 全部：只改內容，重複範圍／例外日不動
-      await $fetch(`/api/courses/${orig.id}`, {
-        method: 'PUT',
-        body: { ...courseBody, startDate: orig.startDate ?? '', endDate: orig.endDate ?? '', exDates: origEx }
-      })
-    } else if (scope === 'following') {
-      // 這次及之後：原課結束於 occ 前一天；自 occ 起新建一段套用新內容
-      await $fetch(`/api/courses/${orig.id}`, {
-        method: 'PUT',
-        body: { ...origBody, startDate: orig.startDate ?? '', endDate: dayBefore(occ), exDates: origEx.filter(d => d < occ) }
-      })
-      await $fetch('/api/courses', {
-        method: 'POST',
-        body: { ...courseBody, startDate: occ, endDate: orig.endDate ?? '', exDates: origEx.filter(d => d >= occ) }
-      })
+    if (form.repeat === 'none') {
+      // 原本是每週課，改為不重複
+      if (scope === 'all') {
+        await $fetch(`/api/courses/${orig.id}`, { method: 'DELETE' })
+        await $fetch('/api/events', { method: 'POST', body: eventBody })
+      } else if (scope === 'following') {
+        await $fetch(`/api/courses/${orig.id}`, {
+          method: 'PUT',
+          body: { ...origBody, startDate: orig.startDate ?? '', endDate: dayBefore(occ), exDates: origEx.filter(d => d < occ) }
+        })
+        await $fetch('/api/events', { method: 'POST', body: eventBody })
+      } else {
+        const exDates = Array.from(new Set([...origEx, occ]))
+        await $fetch(`/api/courses/${orig.id}`, {
+          method: 'PUT',
+          body: { ...origBody, startDate: orig.startDate ?? '', endDate: orig.endDate ?? '', exDates }
+        })
+        await $fetch('/api/events', { method: 'POST', body: eventBody })
+      }
     } else {
-      // 僅這一次：把 occ 加進原課例外日，並在該日建立單次活動覆寫
-      const exDates = Array.from(new Set([...origEx, occ]))
-      await $fetch(`/api/courses/${orig.id}`, {
-        method: 'PUT',
-        body: { ...origBody, startDate: orig.startDate ?? '', endDate: orig.endDate ?? '', exDates }
-      })
-      await $fetch('/api/events', {
-        method: 'POST',
-        body: {
-          classroom: form.classroom, kind: form.kind, title: form.title,
-          host: form.host, sharer: form.sharer, summarizer: form.summarizer, pm: form.pm,
-          date: occ, startTime: form.startTime, endTime: form.endTime,
-          location: form.location, color: form.color, note: form.note
-        }
-      })
+      if (scope === 'all') {
+        // 全部：只改內容，重複範圍／例外日不動
+        await $fetch(`/api/courses/${orig.id}`, {
+          method: 'PUT',
+          body: { ...courseBody, startDate: orig.startDate ?? '', endDate: orig.endDate ?? '', exDates: origEx }
+        })
+      } else if (scope === 'following') {
+        // 這次及之後：原課結束於 occ 前一天；自 occ 起新建一段套用新內容
+        await $fetch(`/api/courses/${orig.id}`, {
+          method: 'PUT',
+          body: { ...origBody, startDate: orig.startDate ?? '', endDate: dayBefore(occ), exDates: origEx.filter(d => d < occ) }
+        })
+        await $fetch('/api/courses', {
+          method: 'POST',
+          body: { ...courseBody, startDate: occ, endDate: orig.endDate ?? '', exDates: origEx.filter(d => d >= occ) }
+        })
+      } else {
+        // 僅這一次：把 occ 加進原課例外日，並在該日建立單次活動覆寫
+        const exDates = Array.from(new Set([...origEx, occ]))
+        await $fetch(`/api/courses/${orig.id}`, {
+          method: 'PUT',
+          body: { ...origBody, startDate: orig.startDate ?? '', endDate: orig.endDate ?? '', exDates }
+        })
+        await $fetch('/api/events', {
+          method: 'POST',
+          body: {
+            classroom: form.classroom, kind: form.kind, title: form.title,
+            host: form.host, sharer: form.sharer, summarizer: form.summarizer, pm: form.pm,
+            date: occ, startTime: form.startTime, endTime: form.endTime,
+            location: form.location, color: form.color, note: form.note
+          }
+        })
+      }
     }
     await Promise.all([refreshCourses(), refreshEvents()])
     notify.success('已儲存')
@@ -726,18 +763,26 @@ async function applyCourseEdit(scope: 'this' | 'following' | 'all') {
   }
 }
 
-// 刪除單筆（詳情彈窗與編輯視窗共用）；回傳是否成功刪除
-async function deleteEntry(source: 'course' | 'event', id: number, title: string) {
+// 刪除單筆/重複課程（詳情彈窗與編輯視窗共用）
+async function deleteEntry(source: 'course' | 'event', id: number, title: string, occDate?: string) {
+  if (source === 'course') {
+    deleteScope.value = 'this'
+    pendingDeleteTarget.value = {
+      source,
+      id,
+      title,
+      occDate: occDate || editingOccurrenceDate.value || form.date
+    }
+    deleteScopeOpen.value = true
+    return false
+  }
+
   if (!(await confirm({ title: '刪除', description: `確定刪除「${title}」？`, danger: true }))) return false
   try {
-    if (source === 'course') {
-      await $fetch(`/api/courses/${id}`, { method: 'DELETE' })
-      await refreshCourses()
-    } else {
-      await $fetch(`/api/events/${id}`, { method: 'DELETE' })
-      await refreshEvents()
-    }
+    await $fetch(`/api/events/${id}`, { method: 'DELETE' })
+    await refreshEvents()
     notify.success('已刪除')
+    detailOpen.value = false
     return true
   } catch {
     notify.error('刪除失敗')
@@ -745,11 +790,69 @@ async function deleteEntry(source: 'course' | 'event', id: number, title: string
   }
 }
 
+// 依使用者選的刪除範圍套用每週課的刪除
+async function applyCourseDelete(scope: 'this' | 'following' | 'all') {
+  const target = pendingDeleteTarget.value
+  if (!target) return
+  const orig = courses.value?.find(c => c.id === target.id)
+  if (!orig) {
+    deleteScopeOpen.value = false
+    return
+  }
+  const occ = target.occDate || todayStr()
+  const origEx = orig.exDates ?? []
+  const origBody = {
+    classroom: orig.classroom, kind: orig.kind, title: orig.title,
+    host: orig.host, sharer: orig.sharer, summarizer: orig.summarizer, pm: orig.pm,
+    dayOfWeek: orig.dayOfWeek, startTime: orig.startTime, endTime: orig.endTime,
+    location: orig.location, color: orig.color, note: orig.note
+  }
+
+  saving.value = true
+  try {
+    if (scope === 'all') {
+      await $fetch(`/api/courses/${orig.id}`, { method: 'DELETE' })
+    } else if (scope === 'following') {
+      if (orig.startDate && occ <= orig.startDate) {
+        await $fetch(`/api/courses/${orig.id}`, { method: 'DELETE' })
+      } else {
+        await $fetch(`/api/courses/${orig.id}`, {
+          method: 'PUT',
+          body: {
+            ...origBody,
+            startDate: orig.startDate ?? '',
+            endDate: dayBefore(occ),
+            exDates: origEx.filter(d => d < occ)
+          }
+        })
+      }
+    } else {
+      const exDates = Array.from(new Set([...origEx, occ]))
+      await $fetch(`/api/courses/${orig.id}`, {
+        method: 'PUT',
+        body: {
+          ...origBody,
+          startDate: orig.startDate ?? '',
+          endDate: orig.endDate ?? '',
+          exDates
+        }
+      })
+    }
+    await Promise.all([refreshCourses(), refreshEvents()])
+    notify.success('已刪除')
+    deleteScopeOpen.value = false
+    detailOpen.value = false
+    open.value = false
+  } catch {
+    notify.error('刪除失敗')
+  } finally {
+    saving.value = false
+  }
+}
+
 async function remove() {
   if (mode.value !== 'edit' || editingId.value === null) return
-  if (await deleteEntry(editingSource.value, editingId.value, form.title)) {
-    open.value = false
-  }
+  await deleteEntry(editingSource.value, editingId.value, form.title, editingOccurrenceDate.value || form.date)
 }
 
 // 快速建立彈窗按「更多選項」→ 沿用已輸入的 form 開完整編輯視窗
@@ -1178,8 +1281,14 @@ function handleTouchCancel() {
           :items="tabItems"
           class="flex-1"
         />
-        <div v-else class="flex-1" />
-        <div v-if="canEdit" class="flex shrink-0 gap-2">
+        <div
+          v-else
+          class="flex-1"
+        />
+        <div
+          v-if="canEdit"
+          class="flex shrink-0 gap-2"
+        >
           <UButton
             icon="i-lucide-upload"
             color="neutral"
@@ -1205,7 +1314,10 @@ function handleTouchCancel() {
         @touchcancel.capture="handleTouchCancel"
       >
         <ClientOnly>
-          <FullCalendar ref="calendarRef" :options="calendarOptions" />
+          <FullCalendar
+            ref="calendarRef"
+            :options="calendarOptions"
+          />
           <template #fallback>
             <div class="text-muted py-16 text-center">
               月曆載入中…
@@ -1684,6 +1796,37 @@ function handleTouchCancel() {
               @click="applyCourseEdit(editScope)"
             >
               確認
+            </UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
+
+    <!-- 刪除範圍（每週重複項目按刪除時詢問，像 Google 日曆） -->
+    <UModal
+      v-model:open="deleteScopeOpen"
+      title="要刪除哪些活動？"
+    >
+      <template #body>
+        <div class="space-y-4">
+          <URadioGroup
+            v-model="deleteScope"
+            :items="deleteScopeItems"
+          />
+          <div class="flex gap-2 justify-end pt-2">
+            <UButton
+              color="neutral"
+              variant="ghost"
+              @click="deleteScopeOpen = false"
+            >
+              取消
+            </UButton>
+            <UButton
+              color="error"
+              :loading="saving"
+              @click="applyCourseDelete(deleteScope)"
+            >
+              確認刪除
             </UButton>
           </div>
         </div>
