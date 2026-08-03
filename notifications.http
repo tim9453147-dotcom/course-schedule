@@ -1,0 +1,13 @@
+### 變數設定
+@baseUrl = http://localhost:3000
+@prodUrl = https://course-schedule-2689336.pages.dev
+# 請填入你的 NUXT_NOTIFY_CRON_SECRET 金鑰（本地已預設為 my-local-secret-123）
+@notifySecret = my-local-secret-123
+
+### 1. 本地開發環境：觸發每日彙整通知 (Daily Digest)
+POST {{baseUrl}}/api/notifications/daily-digest
+Authorization: Bearer {{notifySecret}}
+
+### 2. 正式線上環境：觸發每日彙整通知 (Daily Digest)
+POST {{prodUrl}}/api/notifications/daily-digest
+Authorization: Bearer {{notifySecret}}
