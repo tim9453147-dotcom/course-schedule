@@ -23,9 +23,10 @@ export interface TodayItem {
 
 const WEEKDAY_0_6 = ['日', '一', '二', '三', '四', '五', '六'] // JS getDay：0=週日
 
-// 以台灣時區（UTC+8）取「今天」是哪一天、星期幾
-export function getTaiwanToday(): TodayInfo {
+// 以台灣時區（UTC+8）取「明天」是哪一天、星期幾
+export function getTaiwanTomorrow(): TodayInfo {
   const tw = new Date(Date.now() + 8 * 3600 * 1000)
+  tw.setDate(tw.getDate() + 1)
   const y = tw.getUTCFullYear()
   const m = tw.getUTCMonth() + 1
   const d = tw.getUTCDate()
@@ -40,7 +41,7 @@ export function getTaiwanToday(): TodayInfo {
   }
 }
 
-// 收集今日課程（尊重重複範圍與例外日）+ 今日活動，依教室分組、組內按時間排序。
+// 收集明日課程（尊重重複範圍與例外日）+ 明日活動，依教室分組、組內按時間排序。
 export async function collectTodaySchedule(
   db: Db,
   today: TodayInfo

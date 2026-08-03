@@ -2,7 +2,7 @@ import { eq, isNull, inArray } from 'drizzle-orm'
 import { scheduleChanges, settings, notificationLogs } from '../../db/schema'
 import type { ScheduleChange } from '../../db/schema'
 import { useDb } from '../../utils/db'
-import type { TodayInfo, TodayItem } from '../../utils/todaySchedule'
+import { getTaiwanTomorrow, type TodayInfo, type TodayItem } from '../../utils/todaySchedule'
 
 // 每日通知（見 specs/0025、0026）。
 // GitHub Actions cron 每天 08:00（台灣）帶 Bearer 金鑰呼叫 → 組「今日課表 + 近期異動」→ push 到 LINE 群組。
@@ -33,7 +33,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const db = useDb(event)
-  const today = getTaiwanToday()
+  const today = getTaiwanTomorrow()
 
   // 今日課表（課程 + 活動，跨教室）
   const grouped = await collectTodaySchedule(db, today)
