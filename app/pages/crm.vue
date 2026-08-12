@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 
-// 名單頁：需登入才能看到。兩個分頁——
+// 名單頁：需取得 CRM 權限才能看到。兩個分頁——
 //   每日任務（個人名單表，融合今日跟進智慧提醒，ProspectWorksheet）／ 總名單（原 CRM，ContactList）
-definePageMeta({ middleware: 'auth' })
 
 const activeTab = ref('daily')
 

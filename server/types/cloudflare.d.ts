@@ -7,6 +7,10 @@ declare module 'h3' {
         DB: D1Database
       }
     }
+    cloudflareAccessIdentityResolved?: boolean
+    cloudflareAccessIdentity?: import('../utils/cloudflareAccess').CloudflareAccessIdentity
+    accessPrincipalResolved?: boolean
+    accessPrincipal?: import('../utils/cloudflareAccess').AccessPrincipal
   }
 }
 

@@ -2,6 +2,7 @@
 interface AdminUser {
   id: number
   username: string
+  accessEmail: string | null
   displayName: string
   status: 'pending' | 'approved' | 'rejected' | 'disabled'
   pages: string[]
@@ -71,18 +72,8 @@ async function setStatus(u: AdminUser, status: AdminUser['status'], msg: string)
   await patch(u.id, { status }, msg)
 }
 
-async function resetPassword(u: AdminUser) {
-  const pw = window.prompt(`為「${u.displayName}」設定新密碼（至少 6 碼）`)
-  if (pw == null) return
-  if (pw.length < 6) {
-    notify.error('密碼至少 6 碼')
-    return
-  }
-  await patch(u.id, { password: pw }, '已重設密碼')
-}
-
 async function removeUser(u: AdminUser) {
-  if (!(await confirm({ title: '刪除帳號', description: `確定刪除帳號「${u.username}」？此動作無法復原。`, danger: true }))) return
+  if (!(await confirm({ title: '刪除帳號', description: `確定刪除帳號「${u.accessEmail ?? u.username}」？此動作無法復原。`, danger: true }))) return
   try {
     await $fetch(`/api/users/${u.id}`, { method: 'DELETE' })
     await refresh()
@@ -127,7 +118,7 @@ async function removeUser(u: AdminUser) {
           <div class="space-y-1">
             <p class="font-semibold">
               {{ u.displayName }}
-              <span class="text-muted font-normal">（{{ u.username }}）</span>
+              <span class="text-muted font-normal">（{{ u.accessEmail ?? u.username }}）</span>
             </p>
             <p
               v-if="u.note"
@@ -178,7 +169,7 @@ async function removeUser(u: AdminUser) {
           <div class="flex flex-wrap items-center justify-between gap-3">
             <p class="font-semibold flex items-center gap-2">
               {{ u.displayName }}
-              <span class="text-muted font-normal">（{{ u.username }}）</span>
+              <span class="text-muted font-normal">（{{ u.accessEmail ?? u.username }}）</span>
               <UBadge
                 :color="statusMeta[u.status]?.color"
                 variant="soft"
@@ -204,14 +195,6 @@ async function removeUser(u: AdminUser) {
                 @click="setStatus(u, 'approved', '已啟用')"
               >
                 啟用
-              </UButton>
-              <UButton
-                color="neutral"
-                variant="soft"
-                size="sm"
-                @click="resetPassword(u)"
-              >
-                重設密碼
               </UButton>
               <UButton
                 color="error"

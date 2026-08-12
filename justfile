@@ -54,6 +54,6 @@ release MSG:
     bun run deploy
 
 # 直接呼叫 wrangler，例如：
-# just wrangler pages secret put NUXT_ADMIN_USERNAME --project-name course-schedule-2689336
+# just wrangler pages secret put NUXT_CLOUDFLARE_ACCESS_AUDIENCE --project-name course-schedule-2689336
 wrangler *args:
     bunx wrangler {{args}}

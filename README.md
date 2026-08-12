@@ -20,17 +20,16 @@ just install       # = bun install；postinstall 會跑 nuxt prepare
 cp .env.example .env
 ```
 
-然後編輯 `.env`，至少要填：
+然後編輯 `.env`。本機開發至少要填：
 
 | 變數 | 用途 | 備註 |
 | --- | --- | --- |
-| `NUXT_ADMIN_USERNAME` | 超級管理員帳號 | 不在資料庫裡，純環境變數帳號 |
-| `NUXT_ADMIN_PASSWORD` | 超級管理員密碼 | 請改掉預設值 |
-| `NUXT_SESSION_PASSWORD` | session cookie 加密金鑰 | 至少 32 字元隨機字串，`openssl rand -base64 32` 產生 |
-| `NUXT_GEMINI_API_KEY` | 圖片辨識匯入（選填） | 留空只是「上傳圖片辨識」不能用，手動貼 JSON 匯入仍可用 |
-| `NUXT_GEMINI_MODEL` | Gemini 模型（選填） | 預設 `gemini-2.5-flash` |
+| `NUXT_CLOUDFLARE_ACCESS_DEV_EMAIL` | 本機模擬 Access email | 只在 dev build 生效 |
+| `NUXT_CLOUDFLARE_ACCESS_SUPER_ADMIN_EMAILS` | 超管 email allowlist | 多位用逗號分隔 |
+| `NUXT_SESSION_PASSWORD` | UI session cookie 加密 | 至少 32 字元；後端權限不信任此快取 |
+| `NUXT_GEMINI_API_KEY` | 圖片辨識（選填） | 留空不影響手動 JSON 匯入 |
 
-> 本機開發 D1 用 `--local`，不需要 `wrangler.toml` 裡的 `database_id`。
+> 正式環境另需 Access team domain 與 AUD；完整步驟見 [`docs/cloudflare-access-setup.md`](./docs/cloudflare-access-setup.md)。本機 D1 用 `--local`，不需要 `wrangler.toml` 的 `database_id`。
 
 ### 3. 建立本機資料庫
 
@@ -42,10 +41,10 @@ just db-seed-local         # （選填）載入 server/db/seed.sql 範例資料
 ### 4. 啟動 dev server
 
 ```bash
-just dev                   # = bun dev；http://localhost:3000，D1 透過 wrangler 綁定
+just dev                   # = bun dev；http://localhost:1125，D1 透過 wrangler 綁定
 ```
 
-用 `.env` 裡的超級管理員帳密登入即可有全部權限。
+`.env` 的 dev email 若同時在超管 allowlist，即會以超級管理員身分啟動。
 
 ### 常用指令
 
@@ -64,7 +63,7 @@ just                       # 列出所有 just 指令
 
 ## 二、發布上線
 
-線上專案：**course-schedule-2689336** → https://course-schedule-2689336.pages.dev
+線上 Pages 專案：**course-schedule-2689336**。正式登入建議使用 Cloudflare 管理的 custom domain 並在該 hostname 前建立 Access application。
 
 ### 發布前一定要先設定
 
@@ -84,25 +83,17 @@ just                       # 列出所有 just 指令
 
    每次有新的 schema 變更、部署前後都要再跑一次。
 
-3. **在 Cloudflare Pages 設定 Secrets**（對應 `.env` 的同名變數）
+3. **設定 Cloudflare Access 與 Pages 環境變數**
 
-   `.env` 只在本機有效；線上要在 Pages 專案設定環境變數 / Secrets：
+   依 [`docs/cloudflare-access-setup.md`](./docs/cloudflare-access-setup.md) 加入 Google 等 IdP、建立 self-hosted application 與 pilot Allow policy，再設定：
 
-   - `NUXT_ADMIN_USERNAME` — 超級管理員帳號
-   - `NUXT_ADMIN_PASSWORD` — 超級管理員密碼
-   - `NUXT_SESSION_PASSWORD` — cookie 加密金鑰（至少 32 字元）
-   - `NUXT_GEMINI_API_KEY` — 圖片辨識（選填）
-   - `NUXT_GEMINI_MODEL` — 模型（選填）
+   - `NUXT_CLOUDFLARE_ACCESS_TEAM_DOMAIN` — `https://<team>.cloudflareaccess.com`
+   - `NUXT_CLOUDFLARE_ACCESS_AUDIENCE` — application AUD tag
+   - `NUXT_CLOUDFLARE_ACCESS_SUPER_ADMIN_EMAILS` — 一或多個超管 email
+   - `NUXT_SESSION_PASSWORD` — cookie 加密金鑰
+   - 既有 Gemini / LINE secrets（依功能選填或必填）
 
-   可用 dashboard 設定，或：
-
-   ```bash
-   wrangler pages secret put NUXT_ADMIN_PASSWORD --project-name course-schedule-2689336
-   wrangler pages secret put NUXT_SESSION_PASSWORD --project-name course-schedule-2689336
-   # 其餘變數同理
-   ```
-
-   > ⚠️ **Secret 變更只會在下一次部署後生效**，改完記得重新部署。
+   > 先完成 Access 與環境變數，再部署這個 fail-closed 版本；否則 production SSR/API 會回 401。環境變數變更需重新部署。
 
 ### 部署
 
@@ -114,8 +105,9 @@ just deploy                # = bun run deploy：nuxt build + wrangler pages depl
 
 ## 三、帳號與權限概念
 
-- **超級管理員**：純環境變數帳號（`NUXT_ADMIN_USERNAME` / `NUXT_ADMIN_PASSWORD`），不在資料庫裡，擁有全部頁面與教室權限。
-- **一般使用者**：在登入頁自行申請（狀態 `pending`），由超級管理員到 `/admin` 核准並指派可用頁面 / 教室。
+- **身分驗證**：Cloudflare Access 提供 Google、GitHub、Microsoft、OTP 或其他 OIDC/SAML 登入；應用程式會再次驗證 JWT。
+- **超級管理員**：Access email 出現在 `NUXT_CLOUDFLARE_ACCESS_SUPER_ADMIN_EMAILS`，不依賴 D1，擁有全部頁面與教室權限。
+- **一般使用者**：首次登入自動成為 `pending`，由超管到 `/admin` 核准並指派頁面/教室。
 
 ---
 

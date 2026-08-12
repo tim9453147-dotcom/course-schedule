@@ -28,34 +28,35 @@ bun run deploy              # build + deploy to Pages project course-schedule-26
 
 CI (`.github/workflows/ci.yml`) runs on every push — note it uses **pnpm** on Node 22 (not bun) and only runs `lint` + `typecheck`; there is no build/deploy in CI. A second workflow, `.github/workflows/daily-notify.yml`, is a GitHub Actions **cron** (`0 0 * * *` UTC = 08:00 Taiwan) that `curl`s the deployed `POST /api/notifications/daily-digest` with the `NUXT_NOTIFY_CRON_SECRET` as a Bearer token — see the LINE notification section below.
 
-There are no automated tests. Verification has been done with headless Chrome via Playwright driving a real browser against `bun dev` — e.g. `bunx playwright-core` pointed at `/usr/bin/google-chrome-stable`, logging in through `ctx.request.post('/api/auth/login')` then exercising the UI. Headless screenshots in dev need a long `--virtual-time-budget` (≈20s) on first load because Vite compiles deps on demand.
+There are no automated browser tests. Local auth is simulated with `NUXT_CLOUDFLARE_ACCESS_DEV_EMAIL`; run through `just dev`. Headless screenshots may need a long virtual-time budget on first load because Vite compiles deps on demand.
 
 ## Architecture
 
 Full-stack **Nuxt 4** app. The frontend AND the API live in one project; Nitro builds to the `cloudflare-pages` preset so `server/api/**` runs as a Cloudflare Worker and static assets serve from Pages. There is no separate backend.
 
-**Database access pattern:** D1 is reached only through `useDb(event)` (`server/utils/db.ts`), which reads the binding off `event.context.cloudflare.env.DB` and wraps it in Drizzle. In dev, `nitro-cloudflare-dev` injects that binding from `wrangler.toml`. Every API route that mutates data calls `await requireUserSession(event)` first (nuxt-auth-utils); read routes don't.
+**Database access pattern:** D1 is reached only through `useDb(event)` (`server/utils/db.ts`), which reads `event.context.cloudflare.env.DB` and wraps it in Drizzle. In dev, `nitro-cloudflare-dev` injects the binding from `wrangler.toml`. API authorization uses `requirePage` / `requireSuperAdmin`; public read routes rely on the global Access JWT middleware plus Access at the edge.
 
 **Migrations are split-tool:** drizzle-kit only *generates* SQL (`server/db/migrations/`). Applying it is done by **wrangler**, not `drizzle-kit push` — local and remote D1 are separate databases, hence the `:local` / `:remote` script pair. After editing `server/db/schema.ts`: `db:generate` → `db:migrate:local` (and `db:migrate:remote` before/after deploy).
 
-**Auth & permissions:** two kinds of principal.
-- **Super admin** — env-var account, *not* in the DB. `server/api/auth/login.post.ts` checks `runtimeConfig.adminUsername`/`adminPassword` (from `NUXT_ADMIN_USERNAME` / `NUXT_ADMIN_PASSWORD`) first; match ⇒ full access to every page and classroom.
-- **DB users** (`users` table) — self-apply via `POST /api/auth/apply` (status `pending`), then a super admin approves/grants pages in `/admin`. `status` gates login (`pending`/`rejected`/`disabled` are refused); `pages` (JSON array of page keys) and `classrooms` (JSON array) scope what they can do.
+**Auth & permissions:** Cloudflare Access authenticates every human request; application authorization remains local.
+- `server/utils/cloudflareAccess.ts` validates the Access RS256 JWT against remote JWKS, issuer, and application AUD. Never trust the email header alone.
+- **Super admin** — Access email listed in `NUXT_CLOUDFLARE_ACCESS_SUPER_ADMIN_EMAILS`; not stored in D1; full page/classroom access.
+- **DB users** — first Access login creates `pending`; `/admin` assigns status/pages/classrooms. `users.accessEmail` is the identity key. Existing username=email rows are claimed on first login to preserve their user id and private data.
 
-Session cookie is sealed with `NUXT_SESSION_PASSWORD`. Login uses `replaceUserSession` (not `set`) so a re-login never merges the previous account's `pages`/`classrooms`. Locally these env vars come from `.env` (gitignored; see `.env.example`); on Cloudflare they are Pages secrets — a secret change only takes effect on the **next deployment**.
+The sealed `NUXT_SESSION_PASSWORD` session is UI cache only. Backend authorization resolves the validated Access principal and current D1 row on each request. Production fails closed without a JWT except the LINE webhook and daily-digest endpoints, which keep their own signature/secret checks.
 
-`runtimeConfig` (`nuxt.config.ts`) maps these env vars: `NUXT_ADMIN_USERNAME`/`NUXT_ADMIN_PASSWORD` (super admin), `NUXT_SESSION_PASSWORD` (cookie seal), `NUXT_GEMINI_API_KEY`/`NUXT_GEMINI_MODEL` (image-import OCR — see below), `NUXT_LINE_CHANNEL_ACCESS_TOKEN`/`NUXT_LINE_CHANNEL_SECRET` (LINE push + webhook signature), and `NUXT_NOTIFY_CRON_SECRET` (Bearer guard on the daily-digest endpoint) — the last three are the LINE notification pipeline (see below).
+Access runtime config: `NUXT_CLOUDFLARE_ACCESS_TEAM_DOMAIN`, `NUXT_CLOUDFLARE_ACCESS_AUDIENCE`, `NUXT_CLOUDFLARE_ACCESS_SUPER_ADMIN_EMAILS`, and dev-only `NUXT_CLOUDFLARE_ACCESS_DEV_EMAIL`. See `docs/cloudflare-access-setup.md`. Other runtime config covers Gemini and the LINE notification pipeline.
 
 **The permission model is page-based and lives in `shared/utils/`** (Nuxt auto-imports `shared/` on both client and server — single source of truth):
 - `pages.ts` — `PAGES` registry. Each page has a `key`, `path`, and `access`: `public` (everyone sees it; permission decides whether you can *edit*) or `private` (hidden unless you have the key; permission decides whether you can *see/use* it). Adding a feature page = add one `PAGES` entry, and the nav bar, route guard, `/admin` checkbox grid, and backend `requirePage` all pick it up.
-- `classrooms.ts` — `CLASSROOMS` list + `sanitizeClassrooms`. New/anonymous users default to `中壢` only.
+- `classrooms.ts` — `CLASSROOMS` list + `sanitizeClassrooms`. New pending users start with `中壢` as the eventual default.
 - `seasons.ts` — the seasonal/time-of-day auto-theme (specs 0018–0020): season → primary/neutral color + daypart → light/dark mode. There is no user theme switcher (that was removed in 0017); the look is derived from the current date/time.
 - `aiPrompt.ts` — `DEFAULT_AI_EXTRACT_PROMPT` and its `settings` key (`ai_extract_prompt`) for the image-import OCR (see below).
 
 `PAGES` entries can also carry `nav: false` — used when several page keys share one `path` (e.g. `gathering` + `gathering-recipe` both map to `/gathering`); only the primary key shows in the nav, and `pageByPath` returns the first (public) match so the route stays reachable.
 
 Enforcement is layered — **the frontend guard is cosmetic, the backend is authoritative**:
-- Backend: every mutating route calls `await requirePage(event, '<key>')` or `requireSuperAdmin(event)` (`server/utils/auth.ts`). `getActor()` re-reads the DB on every request (so disabling/regranting takes effect immediately and the session's cached `pages` is never trusted server-side).
+- Backend: every protected route calls `requirePage` or `requireSuperAdmin`. `getActor()` resolves the validated Access identity and current DB state, so disabling/regranting takes effect immediately; session roles are never authoritative.
 - Frontend: `app/middleware/auth.global.ts` hides routes the session can't access; `useCanEdit(key)` (`app/composables/`) toggles edit affordances in the UI.
 
 **Per-user data ownership (CRM):** `contacts`/`contact_stages` rows belong to a user — `userId = users.id` for normal users, `NULL` for the super admin (each principal sees only their own list). Routes scope queries with `ownerKey(actor)` + `ownedBy(column, key)` (the latter handles `IS NULL` correctly).
@@ -69,7 +70,7 @@ Schedule/equipment:
 - `rentals` — borrow records; `returnDate IS NULL` means "still out". Available qty = `totalQty − sum(open rentals)`, computed in `server/utils/inventory.ts` and enforced on borrow.
 
 Accounts & CRM:
-- `users` — DB accounts (see Auth above). `passwordHash` is nuxt-auth-utils scrypt.
+- `users` — D1 authorization profile keyed by nullable-unique `accessEmail`; legacy `username`/`passwordHash` remain only for migration compatibility and are not authentication inputs.
 - `contacts` — CRM leads, owned per-user. `broached` is a fixed boolean; `completedStages` is a JSON array of `contact_stages.id`. `nextFollowUp` is derived from `lastFollowUp` + `followUpFreq` via `computeNextFollowUp` (`server/utils/followup.ts`).
 - `contact_stages` — per-user customizable funnel stages (rename/reorder/delete).
 - `follow_up_logs` — timeline entries, many per contact.

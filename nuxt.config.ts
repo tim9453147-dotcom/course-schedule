@@ -23,11 +23,13 @@ export default defineNuxtConfig({
   },
 
   runtimeConfig: {
-    // 伺服器端可用，預設空字串，由環境變數覆寫：
-    //   NUXT_ADMIN_USERNAME / NUXT_ADMIN_PASSWORD
-    // session 加密用 NUXT_SESSION_PASSWORD（nuxt-auth-utils 自動讀取）
-    adminUsername: '',
-    adminPassword: '',
+    // Cloudflare Access：JWT issuer（team domain）、application AUD 與超管 email allowlist。
+    // production 三者皆必填；多位超管以逗號分隔。
+    cloudflareAccessTeamDomain: '',
+    cloudflareAccessAudience: '',
+    cloudflareAccessSuperAdminEmails: '',
+    // 僅 dev build 生效：本機沒有 Access edge 時模擬指定 email。
+    cloudflareAccessDevEmail: '',
     // Gemini 圖片辨識匯入（免費方案）：NUXT_GEMINI_API_KEY / NUXT_GEMINI_MODEL
     geminiApiKey: '',
     geminiModel: 'gemini-2.5-flash',

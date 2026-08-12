@@ -14,6 +14,7 @@
         "@iconify-json/simple-icons": "^1.2.86",
         "@nuxt/ui": "^4.8.2",
         "drizzle-orm": "^0.45.2",
+        "jose": "^6.2.3",
         "nuxt": "^4.4.8",
         "nuxt-auth-utils": "^0.5.25",
         "tailwindcss": "^4.3.1",

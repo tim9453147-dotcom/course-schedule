@@ -104,15 +104,17 @@ export const rentals = sqliteTable('rentals', {
   equipmentIdIdx: index('rentals_equipment_id_idx').on(table.equipmentId)
 }))
 
-// 使用者資料表（多帳號＋頁面權限＋申請審核）
-// 超級管理員不在此表，靠環境變數帳號登入特判。
+// 使用者資料表（Cloudflare Access 身分＋頁面權限＋審核）
+// 超級管理員 email 由環境變數 allowlist 判斷，不需建立於此表。
 export const users = sqliteTable('users', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  // 登入帳號，唯一（建議 email，不強制格式）
+  // 舊登入帳號；遷移期保留，既有關聯仍以 user id 運作。
   username: text('username').notNull().unique(),
+  // 經 Cloudflare Access 驗證並標準化為小寫的 email；一般使用者身分唯一鍵。
+  accessEmail: text('access_email').unique(),
   // 顯示名稱
   displayName: text('display_name').notNull(),
-  // 密碼雜湊（nuxt-auth-utils hashPassword，scrypt）
+  // 舊帳密相容欄位；Access 模式不使用，待未來重建 SQLite 表時移除。
   passwordHash: text('password_hash').notNull(),
   // 狀態：pending=待審 / approved=已啟用 / rejected=已拒絕 / disabled=已停用
   status: text('status').notNull().default('pending'),

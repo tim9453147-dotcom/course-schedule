@@ -162,6 +162,13 @@
       "when": 1785232282016,
       "tag": "0022_stale_aqueduct",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1786513437000,
+      "tag": "0023_nice_vampiro",
+      "breakpoints": true
     }
   ]
 }

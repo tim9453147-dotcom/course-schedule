@@ -1,17 +1,19 @@
 import { eq, isNull } from 'drizzle-orm'
 import type { SQLiteColumn } from 'drizzle-orm/sqlite-core'
 import type { H3Event } from 'h3'
-import { users } from '../db/schema'
 import type { User } from '../db/schema'
 
 // 擴充 nuxt-auth-utils 的 session 型別
 declare module '#auth-utils' {
   interface User {
     name: string
+    email: string
   }
   interface UserSession {
-    // DB 使用者 id；超級管理員為 undefined
+    // Cloudflare Access 身分與其對應的 DB 使用者；超管沒有 userId。
     userId?: number
+    accessEmail?: string
+    accountStatus?: string
     isSuperAdmin?: boolean
     // 給前端導覽列用；後端強制權限時不信任這個，會重查 DB
     pages?: string[]
@@ -46,15 +48,12 @@ export type Actor
 // 取得目前登入者的「即時」狀態（每次查 DB，所以停用/改權限會立即生效）。
 // 未登入、或帳號非 approved，皆回 null。
 export async function getActor(event: H3Event): Promise<Actor | null> {
-  const session = await getUserSession(event)
-  if (session.isSuperAdmin) {
+  const principal = await getAccessPrincipal(event)
+  if (!principal) return null
+  if (principal.kind === 'super-admin') {
     return { isSuperAdmin: true, pages: PAGE_KEYS, classrooms: CLASSROOMS }
   }
-  const userId = session.userId
-  if (!userId) return null
-
-  const db = useDb(event)
-  const u = await db.select().from(users).where(eq(users.id, userId)).get()
+  const u = principal.user
   if (!u || u.status !== 'approved') return null
 
   return { isSuperAdmin: false, user: u, pages: parsePages(u.pages), classrooms: parseClassrooms(u.classrooms) }
@@ -85,8 +84,8 @@ export function ownedBy(column: SQLiteColumn, key: number | null) {
 
 // 要求超級管理員（管理者頁、使用者管理 API）
 export async function requireSuperAdmin(event: H3Event): Promise<void> {
-  const session = await getUserSession(event)
-  if (!session.isSuperAdmin) {
+  const principal = await getAccessPrincipal(event)
+  if (principal?.kind !== 'super-admin') {
     throw createError({ statusCode: 403, statusMessage: '需要超級管理員權限' })
   }
 }
