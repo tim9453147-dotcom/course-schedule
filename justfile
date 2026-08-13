@@ -8,7 +8,9 @@ default:
 
 # 安裝相依套件（postinstall 會跑 nuxt prepare）
 install:
+    git pull
     bun install
+    bun run db:migrate:local
 
 # 開發伺服器 http://localhost:1125
 dev:
@@ -30,16 +32,9 @@ lint:
 db-generate:
     bun run db:generate
 
-# 套用 migration 到本機 D1
-db-migrate-local:
-    bun run db:migrate:local
-
-# 套用 migration 到遠端 D1
-db-migrate-remote:
-    bun run db:migrate:remote
-
 # 載入範例資料到本機 D1
 db-seed-local:
+    bun run db:migrate:remote
     bun run db:seed:local
 
 # 建置並部署到 Cloudflare Pages
