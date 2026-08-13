@@ -2,6 +2,14 @@
 
 以 **Nuxt 4 + Cloudflare Pages + D1** 打造的全端課表 / 設備 / CRM 管理系統。前端與 API 在同一個專案裡，Nitro 以 `cloudflare-pages` preset 建置，`server/api/**` 會跑成 Cloudflare Worker。
 
+## 目前狀態
+
+- 正式站：<https://course-schedule-2689336.pages.dev/>
+- 登入：Cloudflare Access + Google，已上線並完成超管登入驗證。
+- 帳號：Access 控制可登入的 email；一般使用者首次登入為 `pending`，由超管在 `/admin` 核准與分配權限。
+- 資料庫：D1 migration `0023_nice_vampiro.sql` 已套用。
+- 完整設定：[Cloudflare Access 新手教學](./docs/cloudflare-access-setup.md)
+
 ---
 
 ## 一、快速啟動開發
@@ -61,57 +69,20 @@ just                       # 列出所有 just 指令
 
 ---
 
-## 二、發布上線
+## 二、正式環境
 
-線上 Pages 專案：**course-schedule-2689336**。正式登入建議使用 Cloudflare 管理的 custom domain 並在該 hostname 前建立 Access application。
-
-### 發布前一定要先設定
-
-1. **建立遠端 D1 並填入 `database_id`**（只需做一次）
-
-   ```bash
-   wrangler d1 create course-schedule-db
-   ```
-
-   把回傳的 `database_id` 貼進 `wrangler.toml` 的 `[[d1_databases]]` 區塊。
-
-2. **套用遠端資料庫 migration**
-
-   ```bash
-   just db-migrate-remote     # = bun run db:migrate:remote
-   ```
-
-   每次有新的 schema 變更、部署前後都要再跑一次。
-
-3. **設定 Cloudflare Access 與 Pages 環境變數**
-
-   依 [`docs/cloudflare-access-setup.md`](./docs/cloudflare-access-setup.md) 加入 Google 等 IdP、建立 self-hosted application 與 pilot Allow policy，再設定：
-
-   - `NUXT_CLOUDFLARE_ACCESS_TEAM_DOMAIN` — `https://<team>.cloudflareaccess.com`
-   - `NUXT_CLOUDFLARE_ACCESS_AUDIENCE` — application AUD tag
-   - `NUXT_CLOUDFLARE_ACCESS_SUPER_ADMIN_EMAILS` — 一或多個超管 email
-   - `NUXT_SESSION_PASSWORD` — cookie 加密金鑰
-   - 既有 Gemini / LINE secrets（依功能選填或必填）
-
-   > 先完成 Access 與環境變數，再部署這個 fail-closed 版本；否則 production SSR/API 會回 401。環境變數變更需重新部署。
-
-### 部署
+Pages Production 必須設定 `NUXT_CLOUDFLARE_ACCESS_TEAM_DOMAIN`、`NUXT_CLOUDFLARE_ACCESS_AUDIENCE`、`NUXT_CLOUDFLARE_ACCESS_SUPER_ADMIN_EMAILS` 與 `NUXT_SESSION_PASSWORD`。部署前先套用 migration：
 
 ```bash
-just deploy                # = bun run deploy：nuxt build + wrangler pages deploy dist
+just db-migrate-remote
+just deploy
 ```
 
----
-
-## 三、帳號與權限概念
-
-- **身分驗證**：Cloudflare Access 提供 Google、GitHub、Microsoft、OTP 或其他 OIDC/SAML 登入；應用程式會再次驗證 JWT。
-- **超級管理員**：Access email 出現在 `NUXT_CLOUDFLARE_ACCESS_SUPER_ADMIN_EMAILS`，不依賴 D1，擁有全部頁面與教室權限。
-- **一般使用者**：首次登入自動成為 `pending`，由超管到 `/admin` 核准並指派頁面/教室。
+環境變數變更後必須重新部署。Cloudflare Access、帳號新增與停權流程見[完整教學](./docs/cloudflare-access-setup.md)。
 
 ---
 
-## 四、技術重點
+## 三、技術重點
 
 - 全端 Nuxt 4，API 在 `server/api/**`，部署為 Cloudflare Worker。
 - 資料庫只透過 `useDb(event)`（Drizzle 包 D1）存取。
