@@ -63,6 +63,11 @@ body {
 :root[data-season="winter"][data-daypart="dusk"] { --app-bg: linear-gradient(160deg, #3730a3, #6d28d9 55%, #0f172a); }
 :root[data-season="winter"][data-daypart="night"] { --app-bg: linear-gradient(160deg, #1e1b4b, #020617); }
 
+/* ── 黑色科技（VS Code Dark Modern，spec 0026）── */
+:root[data-theme="dark-modern"] {
+  --app-bg: linear-gradient(180deg, #1e1e20 0%, #18181b 100%) !important;
+}
+
 /* 隱藏滾動條（常用於手機版水平捲動頁籤） */
 .no-scrollbar::-webkit-scrollbar {
   display: none;

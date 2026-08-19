@@ -1,7 +1,17 @@
-// 啟動即套用季節/時段主題；client 端定時 + 重新聚焦時更新，跨邊界自動切換。
+// 啟動即套用全站/季節/時段主題；client 端定時 + 重新聚焦時更新，跨邊界自動切換。
 // 注意：@nuxtjs/color-mode 會在 app:mounted 依 cookie 重設 preference，故掛載後再補套一次 mode（見 spec 0016）。
-export default defineNuxtPlugin((nuxtApp) => {
-  const { theme, now, apply, applyMode } = useSeasonalTheme()
+export default defineNuxtPlugin(async (nuxtApp) => {
+  const { theme, siteTheme, now, apply, applyMode } = useSeasonalTheme()
+
+  // 取得全站主題設定（SSR 與 Client 初始化同步）
+  try {
+    const { data } = await useFetch('/api/settings/theme', { key: 'cs-site-theme-fetch' })
+    if (data.value?.theme) {
+      siteTheme.value = data.value.theme
+    }
+  } catch {
+    // 取得失敗時採用預設值
+  }
 
   // SSR + client 啟動都先套一次（primary/neutral 於 SSR 就正確）
   apply()
@@ -36,10 +46,8 @@ export default defineNuxtPlugin((nuxtApp) => {
 
     // 只在「解析後的主題實際改變」時才過渡套用（避免每 60 秒 tick 觸發無謂動畫）。
     // 用字串鍵：Vue 以值（Object.is）比較，內容不變就不觸發；用陣列會因每次都是新參考而誤觸發。
-    // 鍵用 season|daypart（完整涵蓋所有視覺變化）：同季內 dawn↔day、dusk↔night 只有背景漸層變、
-    // primary/neutral/mode 不變，若只看後三者會漏掉這種切換而不過渡。
     watch(
-      () => `${theme.value.season}|${theme.value.daypart}`,
+      () => `${theme.value.siteTheme}|${theme.value.season}|${theme.value.daypart}`,
       () => applyWithTransition()
     )
 

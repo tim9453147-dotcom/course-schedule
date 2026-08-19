@@ -22,6 +22,7 @@ useHead({
   link: [{ rel: 'icon', href: '/favicon.ico' }],
   htmlAttrs: {
     'lang': 'zh-Hant',
+    'data-theme': computed(() => seasonalTheme.value.siteTheme === 'dark_modern' ? 'dark-modern' : undefined),
     'data-season': computed(() => seasonalTheme.value.season),
     'data-daypart': computed(() => seasonalTheme.value.daypart)
   }

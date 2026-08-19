@@ -2,11 +2,15 @@
 // season 由月份決定、daypart 由小時決定；resolveTheme() 把兩者組合成一組 Nuxt UI 設定
 // （primary/neutral 色盤 + 深/淺）。未來要接天氣 API：擴充 resolveTheme 的入參即可。
 
+export type SiteTheme = 'seasonal' | 'dark_modern'
 export type Season = 'spring' | 'summer' | 'autumn' | 'winter'
 export type Daypart = 'dawn' | 'day' | 'dusk' | 'night'
 export type Mode = 'light' | 'dark'
 
+export const SITE_THEME_KEY = 'site_theme'
+
 export interface ResolvedTheme {
+  siteTheme: SiteTheme
   season: Season
   daypart: Daypart
   primary: string
@@ -31,6 +35,10 @@ export const DAYPART_MODE: Record<Daypart, Mode> = {
   day: 'light', // 白天（明亮）
   dusk: 'dark', // 黃昏（暖色夕陽，深）
   night: 'dark' // 夜晚（深邃）
+}
+
+export function isSiteTheme(v: unknown): v is SiteTheme {
+  return v === 'seasonal' || v === 'dark_modern'
 }
 
 export function isSeason(v: unknown): v is Season {
@@ -72,10 +80,21 @@ export function nowParts(date: Date, timeZone = 'Asia/Taipei'): { season: Season
   return { season: getSeason(month), daypart: getDaypart(hour) }
 }
 
-// 把季節 + 時段組合成完整主題設定。未來加天氣：多一個入參並在此微調回傳值。
-export function resolveTheme(input: { season: Season, daypart: Daypart }): ResolvedTheme {
-  const { season, daypart } = input
+// 把全站風格 + 季節 + 時段組合成完整主題設定。
+export function resolveTheme(input: { siteTheme?: SiteTheme, season: Season, daypart: Daypart }): ResolvedTheme {
+  const { siteTheme = 'seasonal', season, daypart } = input
+  if (siteTheme === 'dark_modern') {
+    return {
+      siteTheme: 'dark_modern',
+      season,
+      daypart,
+      primary: 'sky',
+      neutral: 'zinc',
+      mode: 'dark'
+    }
+  }
   return {
+    siteTheme: 'seasonal',
     season,
     daypart,
     primary: SEASON_COLORS[season].primary,
