@@ -88,7 +88,8 @@ export function resolveTheme(input: { siteTheme?: SiteTheme, season: Season, day
       siteTheme: 'dark_modern',
       season,
       daypart,
-      primary: 'sky',
+      // 深色科技主題採低飽和石色系，避免亮藍在炭黑背景上過度跳出。
+      primary: 'stone',
       neutral: 'zinc',
       mode: 'dark'
     }

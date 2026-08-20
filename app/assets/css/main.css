@@ -63,9 +63,65 @@ body {
 :root[data-season="winter"][data-daypart="dusk"] { --app-bg: linear-gradient(160deg, #3730a3, #6d28d9 55%, #0f172a); }
 :root[data-season="winter"][data-daypart="night"] { --app-bg: linear-gradient(160deg, #1e1b4b, #020617); }
 
-/* ── 黑色科技（VS Code Dark Modern，spec 0026）── */
+/* ── 黑色科技：炭黑 × 象牙（Notion 式暖灰深色介面）──
+   以近黑、石墨與暖白建立閱讀層次；象牙色只保留給目前選取與主要操作，
+   讓排程資料本身而非滿版高飽和藍成為視覺焦點。 */
 :root[data-theme="dark-modern"] {
-  --app-bg: linear-gradient(180deg, #1e1e20 0%, #18181b 100%) !important;
+  --app-bg: linear-gradient(180deg, #151516 0%, #101011 100%) !important;
+  --ui-text-dimmed: #7d7d78;
+  --ui-text-muted: #aaa9a2;
+  --ui-text-toned: #cbc9c0;
+  --ui-text: #e1e0d8;
+  --ui-text-highlighted: #f4f2e9;
+  --ui-text-inverted: #1a1917;
+  --ui-bg: #151516;
+  --ui-bg-muted: #1b1b1d;
+  --ui-bg-elevated: #222225;
+  --ui-bg-accented: #2c2c30;
+  --ui-bg-inverted: #f4f2e9;
+  --ui-border: #303034;
+  --ui-border-muted: #28282b;
+  --ui-border-accented: #424247;
+  --ui-border-inverted: #f4f2e9;
+  --ui-primary: #d8d1c2;
+  --ui-primary-foreground: #1a1917;
+}
+
+/* Tab 改成沉在石墨色軌道內的選取膠囊；指示器不再是一條突兀的藍線。 */
+:root[data-theme="dark-modern"] [data-slot="list"] {
+  gap: 0.125rem;
+  padding: 0.25rem;
+  background: #1b1b1d;
+  border: 1px solid #303034;
+  border-radius: 0.75rem;
+}
+:root[data-theme="dark-modern"] [data-slot="indicator"] {
+  background: #d8d1c2;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 1px rgb(0 0 0 / 20%), inset 0 0 0 1px rgb(255 255 255 / 18%);
+}
+:root[data-theme="dark-modern"] [data-slot="trigger"] {
+  position: relative;
+  z-index: 1;
+  color: var(--ui-text-muted);
+  border-radius: 0.5rem;
+  transition: color 160ms ease;
+}
+:root[data-theme="dark-modern"] [data-slot="trigger"][data-state="active"] {
+  color: #1a1917;
+  font-weight: 650;
+}
+
+/* 主要按鈕採暖象牙，並用細緻陰影建立可按壓的層次。 */
+:root[data-theme="dark-modern"] [data-slot="base"].bg-primary {
+  color: #1a1917;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 28%), inset 0 1px 0 rgb(255 255 255 / 20%);
+}
+:root[data-theme="dark-modern"] [data-slot="base"].bg-primary:hover {
+  background-color: #ebe5d8;
+}
+:root[data-theme="dark-modern"] [data-slot="base"].border-primary {
+  border-color: #8e887d;
 }
 
 /* 隱藏滾動條（常用於手機版水平捲動頁籤） */
