@@ -14,17 +14,13 @@ const visiblePages = computed(() =>
   })
 )
 
-// 季節/時段掛到 <html> 屬性，供 main.css 選背景漸層（SSR 就寫入）
-const { theme: seasonalTheme } = useSeasonalTheme()
-
+// Dark Tech 單一風格（spec 0032）：static 掛 data-theme，明暗由 colorMode 的 .dark 切換
 useHead({
   meta: [{ name: 'viewport', content: 'width=device-width, initial-scale=1' }],
   link: [{ rel: 'icon', href: '/favicon.ico' }],
   htmlAttrs: {
     'lang': 'zh-Hant',
-    'data-theme': computed(() => seasonalTheme.value.siteTheme === 'dark_modern' ? 'dark-modern' : undefined),
-    'data-season': computed(() => seasonalTheme.value.season),
-    'data-daypart': computed(() => seasonalTheme.value.daypart)
+    'data-theme': 'dark-tech'
   }
 })
 
@@ -69,7 +65,7 @@ async function logout() {
       </template>
 
       <template #right>
-        <SeasonThemePanel v-if="isSuper" />
+        <ThemeToggle />
         <template v-if="loggedIn">
           <UBadge
             v-if="session?.accountStatus === 'pending'"

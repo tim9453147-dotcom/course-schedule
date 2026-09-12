@@ -13,8 +13,8 @@ export default defineNuxtConfig({
 
   css: ['~/assets/css/main.css'],
 
-  // 深/淺色由「季節×時段」主題於執行期驅動（app/plugins/seasonal-theme.ts）。
-  // 這裡的 preference/fallback 僅為首屏 fallback；storage 用 cookie 讓已造訪者 SSR 就渲染正確深/淺。
+  // Dark Tech 單一風格的深/淺切換（spec 0032）：header 的 UColorModeButton 寫 cookie，
+  // SSR 依 cookie 渲染正確明暗不閃；新訪者預設深色（貼近簡報主題的原始氛圍）。
   colorMode: {
     preference: 'dark',
     fallback: 'dark',
