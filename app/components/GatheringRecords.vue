@@ -54,9 +54,8 @@ function financeOf(id: number) {
   return f
 }
 
-// 名單 (操鍋/助手/採買)
-const { data: contacts } = await useFetch<Contact[]>('/api/contacts', { key: 'global-contacts', default: () => [] })
-const contactNames = computed(() => Array.from(new Set((contacts.value ?? []).map(c => c.name))))
+// 操鍋／助手／採買人名輸入（名單功能已移除，無共用建議來源，僅自由輸入）
+const nameSuggestions: string[] = []
 
 // 食譜
 const { data: recipes } = await useFetch<Recipe[]>('/api/recipes', { key: 'global-recipes', default: () => [] })
@@ -1191,7 +1190,7 @@ function handleTouchCancel() {
               <UFormField label="操鍋">
                 <UInputMenu
                   v-model="form.cook"
-                  :items="contactNames"
+                  :items="nameSuggestions"
                   create-item
                   :disabled="!canEdit"
                   placeholder="選擇或輸入"
@@ -1202,7 +1201,7 @@ function handleTouchCancel() {
               <UFormField label="助手">
                 <UInputMenu
                   v-model="form.assistant"
-                  :items="contactNames"
+                  :items="nameSuggestions"
                   create-item
                   :disabled="!canEdit"
                   placeholder="選擇或輸入"
@@ -1213,7 +1212,7 @@ function handleTouchCancel() {
               <UFormField label="採買">
                 <UInputMenu
                   v-model="form.shopper"
-                  :items="contactNames"
+                  :items="nameSuggestions"
                   create-item
                   :disabled="!canEdit"
                   placeholder="選擇或輸入"
