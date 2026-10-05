@@ -8,7 +8,7 @@
 ## 變更
 
 ### 1. `shared/utils/pages.ts`（新增，前後端共用）
-- `PAGES` 頁面登記表（單一來源）：`calendar`、`equipment`（皆 public），CRM 註解保留位。
+- `PAGES` 頁面登記表（單一來源）：`calendar`、`equipment`（皆 public）。
 - `PAGE_KEYS`、`pageByKey`、`pageByPath`、`sanitizePages`。
 - `access: 'public' | 'private'` 區分「公開可看、權限控編輯」與「登入限定、權限控可見」。
 

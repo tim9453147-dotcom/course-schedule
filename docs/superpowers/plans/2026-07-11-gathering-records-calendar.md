@@ -23,7 +23,7 @@
 ## File Structure
 
 - **Create** `app/components/GatheringDetailPopover.vue` — 唯讀詳情浮層（家聚欄位：日期/時間、地點、地圖、操鍋/助手/採買 + 編輯/刪除鈕）。單一職責、可獨立理解。
-- **Modify** `app/components/GatheringRecords.vue` — 清單 → 日曆 + 快建 popover + 詳情 popover 觸發；保留原有 modal 表單、`save()`/`remove()`、名單/食譜/活動名稱建議、`openPicker`/`selectAllOnFocus`。
+- **Modify** `app/components/GatheringRecords.vue` — 清單 → 日曆 + 快建 popover + 詳情 popover 觸發；保留原有 modal 表單、`save()`/`remove()`、食譜/活動名稱建議、`openPicker`/`selectAllOnFocus`。
 - **Reuse (no change)** `app/utils/schedule.ts`：`HOUR_OPTIONS`、`MINUTE_OPTIONS`、`dateLabel`、`timeLabel`、`colorHex`、`COLOR_HEX`、`colorDot`。
 
 `GatheringDetail` 型別在本次定義於 `GatheringRecords.vue` 並 `export`，供 popover 元件 `import type` 使用（家聚專用，不放 `schedule.ts` 以免與課表 `EventDetail` 混淆）。

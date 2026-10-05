@@ -29,7 +29,7 @@
 ## 影響檔案
 
 - 新增：`app/components/ConfirmDialog.vue`、`app/composables/useConfirm.ts`、`app/composables/useNotify.ts`
-- 修改：`app/app.vue`、`app/pages/{index,crm,equipment,admin,login,apply}.vue`
+- 修改：`app/app.vue`、`app/pages/{index,equipment,admin,login,apply}.vue`
 
 ## 不在範圍
 

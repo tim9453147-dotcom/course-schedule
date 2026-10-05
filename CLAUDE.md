@@ -59,8 +59,6 @@ Enforcement is layered — **the frontend guard is cosmetic, the backend is auth
 - Backend: every protected route calls `requirePage` or `requireSuperAdmin`. `getActor()` resolves the validated Access identity and current DB state, so disabling/regranting takes effect immediately; session roles are never authoritative.
 - Frontend: `app/middleware/auth.global.ts` hides routes the session can't access; `useCanEdit(key)` (`app/composables/`) toggles edit affordances in the UI.
 
-**Per-user data ownership (CRM):** `contacts`/`contact_stages` rows belong to a user — `userId = users.id` for normal users, `NULL` for the super admin (each principal sees only their own list). Routes scope queries with `ownerKey(actor)` + `ownedBy(column, key)` (the latter handles `IS NULL` correctly).
-
 ### Data model (`server/db/schema.ts`)
 
 Schedule/equipment:
@@ -69,12 +67,8 @@ Schedule/equipment:
 - `equipment` — items with `totalQty`, grouped by `classroom`.
 - `rentals` — borrow records; `returnDate IS NULL` means "still out". Available qty = `totalQty − sum(open rentals)`, computed in `server/utils/inventory.ts` and enforced on borrow.
 
-Accounts & CRM:
+Accounts:
 - `users` — D1 authorization profile keyed by nullable-unique `accessEmail`; legacy `username`/`passwordHash` remain only for migration compatibility and are not authentication inputs.
-- `contacts` — CRM leads, owned per-user. `broached` is a fixed boolean; `completedStages` is a JSON array of `contact_stages.id`. `nextFollowUp` is derived from `lastFollowUp` + `followUpFreq` via `computeNextFollowUp` (`server/utils/followup.ts`).
-- `contact_stages` — per-user customizable funnel stages (rename/reorder/delete).
-- `follow_up_logs` — timeline entries, many per contact.
-- `prospects` — the "每日任務" board (spec 0015): places a `contacts` row into a `section` (`develop`/`reserve`/`five`/`network`). Owned per-user like `contacts` (`userId` = `users.id`, `NULL` for super admin). Stores only its own `date`; name and other fields are read through the referenced `contactId`. Same person may appear in multiple sections but not twice in one; deleting a contact cascades to its prospects.
 - `settings` — generic single-key/value store (`key` PK, `value`). In use for the editable AI-extract prompt (`key = ai_extract_prompt`, spec 0023) and the LINE group id (`key = line_group_id`, spec 0025).
 
 家聚點 (specs 0021/0024/0026/0027 — the `/gathering` page; **not** classroom-scoped):

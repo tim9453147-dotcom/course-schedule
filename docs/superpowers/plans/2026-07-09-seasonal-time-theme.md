@@ -431,7 +431,7 @@ Expected: 皆通過。
 `just dev` 下逐一開下列網址截圖，確認整頁背景漸層隨組合改變、且卡片文字清晰可讀：
 - 代表組合：`?season=autumn&daypart=dusk`（暖色夕陽）、`?season=winter&daypart=night`（雪夜深藍）、`?season=spring&daypart=day`（清透櫻粉）、`?season=summer&daypart=dawn`（晨光天藍）。
 - 至少各季一組 light（dawn/day）與一組 dark（dusk/night），共檢查 ≥8 組。
-- **可讀性重點**：確認 `<body>` 透明後漸層有透出（背景不是純白/純黑），且 `index`（FullCalendar）、`crm`、`equipment` 頁的卡片/表格底色仍不透明、文字對比足夠。
+- **可讀性重點**：確認 `<body>` 透明後漸層有透出（背景不是純白/純黑），且 `index`（FullCalendar）、`equipment` 頁的卡片/表格底色仍不透明、文字對比足夠。
 - 若某包裹層仍蓋住漸層（背景沒透出）：用 devtools 找出該不透明元素（可能是 `#__nuxt` 或 UApp 根），在 main.css 針對它加 `background-color: transparent;`。
 
 - [ ] **Step 5: Commit**

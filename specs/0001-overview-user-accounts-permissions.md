@@ -9,7 +9,7 @@ Branch: `feature/user-accounts-permissions`
 
 ## 角色
 
-| 角色 | 來源 | 公開頁（課表/器材室） | 登入限定頁（CRM…） | 管理者頁 `/admin` |
+| 角色 | 來源 | 公開頁（課表/器材室） | 登入限定頁（private） | 管理者頁 `/admin` |
 |---|---|---|---|---|
 | 路人 | 未登入 | 只能看，不能編輯 | 看不到 | 看不到 |
 | 使用者 | DB 帳號、審核通過、被授權 | 看＋編輯（被授權頁） | 看見並使用（被授權頁） | 看不到 |
@@ -20,13 +20,13 @@ Branch: `feature/user-accounts-permissions`
 
 ## 頁面登記表（單一來源）
 
-集中定義於共用 util，前後端共用。之後新增頁面（如 CRM）只需加一筆 ＋ 做頁面與 API。
+集中定義於共用 util，前後端共用。之後新增頁面只需加一筆 ＋ 做頁面與 API。
 
 ```ts
 PAGES = [
   { key: 'calendar',  label: '課表',       path: '/',          access: 'public'  },
   { key: 'equipment', label: '器材室管理', path: '/equipment', access: 'public'  },
-  // { key: 'crm',     label: 'CRM',        path: '/crm',       access: 'private' }, // 日後
+  // { key: 'example', label: '範例頁',    path: '/example',   access: 'private' }, // 日後
 ]
 ```
 

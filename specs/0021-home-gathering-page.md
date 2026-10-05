@@ -106,9 +106,9 @@ createdAt     integer notNull
 
 ## 前端
 
-- `app/pages/gathering.vue`：`definePageMeta({ middleware:'auth' })` 不需要（因 public 可進），改為在頁面內以 `useCanEdit` 決定分頁。用 `<UTabs>`，`items` 依權限動態組出（活動紀錄恆有；收支/食譜視權限加入）。沿用 `crm.vue` 的 tab 寫法。
+- `app/pages/gathering.vue`：`definePageMeta({ middleware:'auth' })` 不需要（因 public 可進），改為在頁面內以 `useCanEdit` 決定分頁。用 `<UTabs>`，`items` 依權限動態組出（活動紀錄恆有；收支/食譜視權限加入）。
 - 元件（`app/components/`，Nuxt 自動匯入）：
-  - `GatheringRecords.vue` — 活動紀錄：list（`日期｜名稱｜地點`）＋明細 modal（完整欄位、可編輯，需 `gathering` 權）。**操鍋/助手/採買為下拉選單**：來源為 `GET /api/contacts`（登入者自己的名單）best-effort 抓取，抓不到（無 crm 權）就退回可自由輸入的文字框；選定後**存人名文字**（不存 contactId）。明細中**點食譜名稱 → 展開/開該食譜的食材與作法**。
+  - `GatheringRecords.vue` — 活動紀錄：list（`日期｜名稱｜地點`）＋明細 modal（完整欄位、可編輯，需 `gathering` 權）。**操鍋/助手/採買為可自由輸入的人名文字框**，選定後**存人名文字**。明細中**點食譜名稱 → 展開/開該食譜的食材與作法**。
   - `GatheringFinance.vue` — 收支：list（`日期｜名稱｜盈餘`，+綠 −紅）＋明細 modal（日期、人數、收費、收入(自動)、支出、盈餘(自動)）。財務資料經 `PUT /api/gathering-finances/[gatheringId]` upsert。
   - `RecipeList.vue` — 食譜：list（名稱）＋明細 modal（名稱、食材、作法、備註）。
 - 沿用現有 `useNotify`／`useConfirm`／`useFetch(deep:true)` 樂觀更新慣例。

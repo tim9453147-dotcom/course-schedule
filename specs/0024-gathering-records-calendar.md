@@ -75,7 +75,7 @@ props：`{ detail: GatheringDetail, canEdit: boolean }`；emits：`edit`、`dele
 流程、參加名單、食譜引用+展開、備註）與 `save()`/`remove()` 邏輯**原封不動保留**，
 只是改由「快建的更多選項」或「詳情的編輯」開啟，而非清單列。
 
-現有的名單建議（`contactNames`）、食譜（`recipes`/`recipeItems`）、活動名稱建議
+現有的食譜（`recipes`/`recipeItems`）、活動名稱建議
 （`nameItems`/`onCreateName`）、`openPicker`、`selectAllOnFocus` 等輔助全部保留。
 
 ## 拖曳改期

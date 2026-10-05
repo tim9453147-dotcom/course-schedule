@@ -1,6 +1,6 @@
 # 課表管理系統（course-schedule）
 
-以 **Nuxt 4 + Cloudflare Pages + D1** 打造的全端課表 / 設備 / CRM 管理系統。前端與 API 在同一個專案裡，Nitro 以 `cloudflare-pages` preset 建置，`server/api/**` 會跑成 Cloudflare Worker。
+以 **Nuxt 4 + Cloudflare Pages + D1** 打造的全端課表 / 設備管理系統。前端與 API 在同一個專案裡，Nitro 以 `cloudflare-pages` preset 建置，`server/api/**` 會跑成 Cloudflare Worker。
 
 ## 目前狀態
 

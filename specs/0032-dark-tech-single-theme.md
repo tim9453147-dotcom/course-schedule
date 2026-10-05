@@ -31,4 +31,4 @@
 
 ## 驗證
 
-`just lint`、`just typecheck`，`just dev` 逐頁（排程/家聚/CRM/每日任務/器材/使用者管理）深淺兩模式各過一輪，含手機版。
+`just lint`、`just typecheck`，`just dev` 逐頁（排程/家聚/器材/使用者管理）深淺兩模式各過一輪，含手機版。

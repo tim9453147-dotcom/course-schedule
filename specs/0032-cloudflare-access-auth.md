@@ -25,6 +25,6 @@
 - 超管 email：可進 `/admin` 與所有功能。
 - 新 email：建立 pending，只可看原 public 唯讀頁面。
 - approved：依 pages/classrooms 使用；disabled/rejected/pending 的受保護 API 拒絕。
-- 舊 email username：綁回原 id，私人 CRM 資料不變。
+- 舊 email username：綁回原 id，保留其 user id 與私人資料。
 - 普通使用者呼叫超管 API：403。
 - LINE webhook/daily digest：無 Access JWT 仍交由端點既有驗證。
